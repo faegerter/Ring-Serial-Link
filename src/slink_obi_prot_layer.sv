@@ -83,6 +83,7 @@ module slink_prot_layer #(
         end
       end
       RWPend: begin
+        //TODO add logic to differentiate between cfg registers and axi stream
         //TODO add end conditions to deassert the w_enable
         //if (axi_in_rsp_o.r_valid & axi_in_req_i.r_ready & axi_in_rsp_o.r.last) begin
         //  commiter_state_d[0] = 1'b0; // AwPend or Idle
