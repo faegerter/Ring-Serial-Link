@@ -36,7 +36,7 @@ module slink_prot_layer #(
   input  obi_req_t  obi_in_req_i,
   output obi_rsp_t  obi_in_rsp_o,
   output obi_req_t  obi_out_req_o,
-  input  axi_rsp_t  obi_out_rsp_i,
+  input  obi_rsp_t  obi_out_rsp_i,
   output axis_req_t axis_out_req_o,
   input  axis_rsp_t axis_out_rsp_i,
   input  axis_req_t axis_in_req_i,
@@ -57,7 +57,7 @@ module slink_prot_layer #(
     logic credit_to_send_force;
 
 
-  logic gnt, w_enable;
+  logic gnt;
 
   logic axis_reg_valid_out, axis_reg_ready_out;
   logic axis_reg_valid_in, axis_reg_ready_in;
@@ -66,62 +66,46 @@ module slink_prot_layer #(
 
   always_comb begin : commiter
     gnt  = 1'b0;
+    obi_in_rsp_o.rvalid = 1'b0;
     commiter_state_d = commiter_state_q;
-    w_enable_d = w_enable_q;
     
     unique case(commiter_state_q)
       Idle: begin
         if (obi_in_req_i.req) begin
           gnt = 1'b1;
-          //TODO check if this is clean. Could be an if condition.
-          w_enable_d = obi_in_req_i.we;
-          commiter_state_d = RWPend;
+          if(obi_in_rsp_o.gnt) begin
+            commiter_state_d = RWPend;
+          end
         end
-        else begin 
-          //TODO check if this is the best way to do it since I'm supposing that the we from the OBI Manager is only active for one cycle here 
-          w_enable_d = 1'b0;
-        end
+        //TODO add logic to differentiate between cfg registers and axi stream
       end
       RWPend: begin
-        //TODO add logic to differentiate between cfg registers and axi stream
-        //TODO add end conditions to deassert the w_enable
-        //if (axi_in_rsp_o.r_valid & axi_in_req_i.r_ready & axi_in_rsp_o.r.last) begin
-        //  commiter_state_d[0] = 1'b0; // AwPend or Idle
-        //end
-        //if (axi_in_req_i.w_valid & axi_in_rsp_o.w_ready & axi_in_req_i.w.last) begin
-        //  commiter_state_d[1] = 1'b0; // ArPend or Idle
+          obi_in_rsp_o.rvalid = 1'b1;
+          commiter_state_d = Idle;
         end
-      end
-
       default:;
     endcase
-
 end
 
 
 `FF(commiter_state_q, commiter_state_d, Idle)
-`FF(w_enable_q, w_enable_d, Idle)
-//TODO check if all or most of the OBI signals require buffering within registers. (Simulating croc in order to see)
 
-//Nothing is really propelry implemented down here.
 
   always_comb begin : sender
     payload_out = '0;
     payload_out.credit = credits_to_send_q;
 
-    if (gnt & obi_in_req_i.we) begin
-      payload_out.axi_ch = axi_in_req_i.aw;
-      payload_out.hdr = slink_pkg::TagW;
-    end else if (gnt & ~obi_in_req_i.we) begin
-      payload_out.axi_ch = axi_out_rsp_i.r;
-      payload_out.hdr = slink_pkg::TagR;
+    if (gnt) begin
+      //TODO ask if this is desired since it uses the same space for reads and writes even though reads are smaller.
+      payload_out.axi_ch = obi_in_req_i.a;
+      //TODO change slink_pkg to OBI channels
+      payload_out.hdr = slink_pkg::TagA;
     end
 
     // There are three reasons to send out a packet:
-    // 1) Send out an AXI beat (!TagIdle)
-    // 2) Return a B response (b_valid)
+    // 1) Send out an OBI beat (!TagIdle)
     // 3) Send an empty packet with credits (credits_to_send_force)
-    axis_reg_valid_in = (payload_out.hdr != slink_pkg::TagIdle) | payload_out.b_valid | credit_to_send_force;
+    axis_reg_valid_in = (payload_out.hdr != slink_pkg::TagIdle) | credit_to_send_force;
 
     // There is a potential deadlock situation, when the last credit on the local side
     // is consumed and all the credits from the other side are currently in-flight.
@@ -133,15 +117,11 @@ end
     end
 
     // Send responses if request was sent
-    axi_in_rsp_o.aw_ready = aw_gnt & axis_reg_ready_in & axis_reg_valid_in;
-    axi_in_rsp_o.w_ready  = w_gnt & axis_reg_ready_in & axis_reg_valid_in;
-    axi_out_req_o.b_ready = b_gnt & axis_reg_ready_in & axis_reg_valid_in;
-    axi_in_rsp_o.ar_ready = ar_gnt & axis_reg_ready_in & axis_reg_valid_in;
-    axi_out_req_o.r_ready = r_gnt & axis_reg_ready_in & axis_reg_valid_in;
+    // TODOadd condition for sending gnt when communicating with cfg regs
+    obi_in_rsp_o.gnt = gnt & axis_reg_ready_in & axis_reg_valid_in;
   end
 
-  // assign axis_reg_valid_in = ((payload_out.hdr != TagIdle) | payload_out.b_valid |
-                              // credit_to_send_force) & (credits_out_q != 0);
+
   assign axis_reg_data_in = payload_out;
   assign axis_out_req_o.tvalid = axis_reg_valid_out;
   assign axis_out_req_o.t.data = axis_reg_data_out;
