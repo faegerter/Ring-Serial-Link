@@ -77,13 +77,14 @@ module slink_prot_layer #(
             commiter_state_d = RWPend;
           end
         end
-        if(obi_out_rsp_i.gnt) begin 
-
+        else if(obi_out_rsp_i.gnt) begin 
+          rvalid = 1'b1;
+          commiter_state_d = RWPend;
         end
         //TODO add logic to differentiate between cfg registers and axi stream
       end
       RWPend: begin
-          if(obi_in_rsp_o.rvalid)begin
+          if(obi_in_rsp_o.rvalid | obi_out_rsp_i.rvalid)begin
             commiter_state_d = Idle;
           end 
         end
@@ -103,6 +104,11 @@ end
       payload_out.axi_ch = obi_in_req_i.a;
       //TODO change slink_pkg to OBI channels
       payload_out.hdr = slink_pkg::TagA;
+    end
+    else if(rvalid)begin 
+      payload_out.axi_ch = obi_out_rsp_i.r;
+      //TODO change slink_pkg to OBI channels
+      payload_out.hdr = slink_pkg::TagR;
     end
 
     // There are two reasons to send out a packet:
