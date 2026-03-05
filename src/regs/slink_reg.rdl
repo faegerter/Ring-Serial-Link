@@ -24,7 +24,7 @@ addrmap slink_reg #(
 
     reg ctrl {
         desc = "Global clock, isolation and reset control configuration";
-        default sw = rw;
+        default sw = r;
         default hw = r;
         field {
             name = "clk_ena";
@@ -47,7 +47,7 @@ addrmap slink_reg #(
     reg isolated {
         desc = "Isolation status of AXI ports";
         default sw = r;
-        default hw = w;
+        default hw = r;
         field {
             name = "axi_in";
             desc = "slave in isolation status";

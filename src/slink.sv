@@ -19,13 +19,12 @@ module slink
   parameter int NumCredits        = 8,
   // Whether to use a register CDC for the configuration registers
   parameter bit NoRegCdc          = 1'b0,
-  parameter type axi_req_t  = logic,
-  parameter type axi_rsp_t  = logic,
-  parameter type aw_chan_t  = logic,
-  parameter type ar_chan_t  = logic,
+  parameter type obi_req_t  = logic,
+  parameter type obi_rsp_t  = logic,
+  parameter type axis_req_t = logic,
+  parameter type axis_rsp_t = logic,
+  parameter type a_chan_t   = logic,
   parameter type r_chan_t   = logic,
-  parameter type w_chan_t   = logic,
-  parameter type b_chan_t   = logic,
   parameter type apb_req_t  = logic,
   parameter type apb_rsp_t  = logic,
   parameter type apb_addr_t = logic[31:0],
@@ -45,23 +44,16 @@ module slink
   input  logic                      clk_reg_i,
   input  logic                      rst_reg_ni,
   input  logic                      testmode_i,
-  input  axi_req_t                  axi_in_req_i,
-  output axi_rsp_t                  axi_in_rsp_o,
-  output axi_req_t                  axi_out_req_o,
-  input  axi_rsp_t                  axi_out_rsp_i,
+  input  obi_req_t                  obi_in_req_i,
+  output obi_rsp_t                  obi_in_rsp_o,
+  output obi_req_t                  obi_out_req_o,
+  input  obi_rsp_t                  obi_out_rsp_i,
   input  apb_req_t                  apb_req_i,
   output apb_rsp_t                  apb_rsp_o,
   input  logic [NumChannels-1:0]    ddr_rcv_clk_i,
   output logic [NumChannels-1:0]    ddr_rcv_clk_o,
   input  logic [NumChannels-1:0][NumLanes-1:0] ddr_i,
   output logic [NumChannels-1:0][NumLanes-1:0] ddr_o,
-  // AXI isolation signals (in/out), if not used tie to 0
-  input  logic [1:0]                isolated_i,
-  output logic [1:0]                isolate_o,
-  // Clock gate register
-  output logic                      clk_ena_o,
-  // synch-reset register
-  output logic                      reset_no
 );
 
   localparam int unsigned NumBitsPerCycle = NumLanes * (1 + EnDdr);
@@ -72,13 +64,10 @@ module slink
   typedef logic [NumBitsPerCycle-1:0] phy_data_t;
 
   // Determine the largest sized AXI channel
-  localparam int AxiChannels[5] = {$bits(b_chan_t),
-                          $bits(aw_chan_t),
-                          $bits(w_chan_t),
-                          $bits(ar_chan_t),
-                          $bits(r_chan_t)};
-  localparam int MaxAxiChannelBits =
-  slink_pkg::find_max_channel(AxiChannels);
+  localparam int ObiChannels[2] = {$bits(a_chan_t),
+                                    $bits(r_chan_t)};
+  localparam int MaxObiChannelBits =
+  slink_pkg::find_max_channel(ObiChannels);
 
 
   // The payload that is converted into an AXI stream consists of
@@ -87,9 +76,7 @@ module slink
   // 3) Header
   // 4) Credit for flow control
   typedef struct packed {
-    logic [MaxAxiChannelBits-1:0] axi_ch;
-    logic b_valid;
-    b_chan_t b;
+    logic [MaxObiChannelBits-1:0] obi_ch;
     slink_pkg::tag_e hdr;
     credit_t credit;
   } payload_t;
@@ -143,24 +130,21 @@ module slink
 
   slink_prot_layer #(
     .NumCredits     ( NumCredits    ),
-    .axi_req_t      ( axi_req_t     ),
-    .axi_rsp_t      ( axi_rsp_t     ),
+    .obi_req_t      ( obi_req_t     ),
+    .obi_rsp_t      ( obi_rsp_t     ),
     .axis_req_t     ( axis_req_t    ),
     .axis_rsp_t     ( axis_rsp_t    ),
-    .aw_chan_t      ( aw_chan_t     ),
-    .w_chan_t       ( w_chan_t      ),
-    .b_chan_t       ( b_chan_t      ),
-    .ar_chan_t      ( ar_chan_t     ),
+    .a_chan_t       ( a_chan_t      ),
     .r_chan_t       ( r_chan_t      ),
     .payload_t      ( payload_t     ),
     .credit_t       ( credit_t      )
   ) i_serial_link_protocol (
     .clk_i          ( clk_sl_i        ),
     .rst_ni         ( rst_sl_ni       ),
-    .axi_in_req_i   ( axi_in_req_i    ),
-    .axi_in_rsp_o   ( axi_in_rsp_o    ),
-    .axi_out_req_o  ( axi_out_req_o   ),
-    .axi_out_rsp_i  ( axi_out_rsp_i   ),
+    .obi_in_req_i   ( obi_in_req_i    ),
+    .obi_in_rsp_o   ( obi_in_rsp_o    ),
+    .obi_out_req_o  ( obi_out_req_o   ),
+    .obi_out_rsp_i  ( obi_out_rsp_i   ),
     .axis_in_req_i  ( axis_in_req     ),
     .axis_in_rsp_o  ( axis_in_rsp     ),
     .axis_out_req_o ( axis_out_req    ),
@@ -414,18 +398,6 @@ module slink
     .hwif_out (reg2hw)
   );
 
-  assign clk_ena_o = reg2hw.ctrl.clk_ena.value;
-  assign reset_no = reg2hw.ctrl.reset_n.value;
-  assign isolate_o = {reg2hw.ctrl.axi_out_isolate.value,
-                      reg2hw.ctrl.axi_in_isolate.value};
-
-  always_comb begin
-    hw2reg.isolated.rd_data  = '0;
-    hw2reg.isolated.rd_data.axi_in = isolated_i[0];
-    hw2reg.isolated.rd_data.axi_out = isolated_i[1];
-  end
-
-  `SLINK_ASSIGN_RDL_RD_ACK(isolated)
 
   if (EnChAlloc) begin : gen_channel_alloc_regs
     `SLINK_ASSIGN_RDL_WR_ACK(channel_alloc_tx_ctrl)

@@ -11,7 +11,7 @@
 
 
 //TODO put in the changed slink module
-`include "obi/typedef.svh"
+//`include "obi/typedef.svh"
 //Link to file:
 //https://github.com/pulp-platform/obi/blob/main/include/obi/typedef.svh
 //TODO add to makefile etc such that it will be automatically downloaded and the structs are instatiated when compiling.
@@ -21,7 +21,7 @@ module slink_prot_layer #(
     parameter type obi_rsp_t  = logic,
     parameter type axis_req_t = logic,
     parameter type axis_rsp_t = logic,
-    parameter type a_chan_t  = logic,
+    parameter type a_chan_t   = logic,
     parameter type r_chan_t   = logic,
     parameter type payload_t  = logic,
     parameter type credit_t   = logic,
@@ -102,12 +102,12 @@ end
     payload_out.credit = credits_to_send_q;
 
     if (gnt) begin
-      payload_out.axi_ch = obi_in_req_i.a;
+      payload_out.obi_ch = obi_in_req_i.a;
       //TODO change slink_pkg to OBI channels
       payload_out.hdr = slink_pkg::TagA;
     end
     else if(rvalid)begin 
-      payload_out.axi_ch = obi_out_rsp_i.r;
+      payload_out.obi_ch = obi_out_rsp_i.r;
       //TODO change slink_pkg to OBI channels
       payload_out.hdr = slink_pkg::TagR;
     end
@@ -175,8 +175,8 @@ end
 
     axis_in_rsp_o = '0;
 
-    obi_out_req_o.a = a_chan_t'(payload_in.axi_ch);
-    obi_in_rsp_o.r = r_chan_t'(payload_in.axi_ch);
+    obi_out_req_o.a = a_chan_t'(payload_in.obi_ch);
+    obi_in_rsp_o.r = r_chan_t'(payload_in.obi_ch);
 
     unpack_state_d = unpack_state_q;
 
