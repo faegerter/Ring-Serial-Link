@@ -11,9 +11,6 @@ module tb_obi_slink;
   `include "obi/typedef.svh"
   `include "obi/assign.svh"
 
-  `include "apb/assign.svh"
-  `include "apb/typedef.svh"
-
   `include "slink_addrmap.svh"
 
   // ==============
@@ -44,13 +41,6 @@ module tb_obi_slink;
 
   `OBI_TYPEDEF_DEFAULT_ALL(obi, ObiCfg)
 
-  // APB types for typedefs
-  typedef logic [RegAddrWidth-1:0]  cfg_addr_t;
-  typedef logic [RegDataWidth-1:0]  cfg_data_t;
-  typedef logic [RegStrbWidth-1:0]  cfg_strb_t;
-
-  `APB_TYPEDEF_ALL(apb, cfg_addr_t, cfg_data_t, cfg_strb_t)
-
   typedef logic [NumLanes*(1+EnDdr)-1:0]  phy_data_t;
 
   // Model signals
@@ -60,11 +50,6 @@ module tb_obi_slink;
   obi_rsp_t   obi_out_rsp_1, obi_out_rsp_2;
   obi_req_t   obi_in_req_1,  obi_in_req_2;
   obi_rsp_t   obi_in_rsp_1,  obi_in_rsp_2;
-
-  apb_req_t   apb_req_1;
-  apb_resp_t  apb_rsp_1;
-  apb_req_t   apb_req_2;
-  apb_resp_t  apb_rsp_2;
 
   // link
   wire [NumChannels*NumLanes-1:0] ddr_o;
@@ -101,12 +86,10 @@ module tb_obi_slink;
 
   // first serial instance
   slink #(
-    .obi_req_t       ( obi_req_t  ),
-    .obi_rsp_t       ( obi_rsp_t  ),
-    .a_chan_t        ( obi_a_chan_t ),
-    .r_chan_t        ( obi_r_chan_t ),
-    .apb_req_t       ( apb_req_t  ),
-    .apb_rsp_t       ( apb_resp_t )
+    .obi_req_t       ( obi_req_t       ),
+    .obi_rsp_t       ( obi_rsp_t       ),
+    .a_chan_t        ( obi_a_chan_t    ),
+    .r_chan_t        ( obi_r_chan_t    )
   ) i_serial_link_1 (
       .clk_i         ( clk_1           ),
       .rst_ni        ( rst_1_n         ),
@@ -129,12 +112,10 @@ module tb_obi_slink;
 
   // second serial instance
   slink #(
-    .obi_req_t       ( obi_req_t  ),
-    .obi_rsp_t       ( obi_rsp_t  ),
-    .a_chan_t        ( obi_a_chan_t ),
-    .r_chan_t        ( obi_r_chan_t ),
-    .apb_req_t       ( apb_req_t  ),
-    .apb_rsp_t       ( apb_resp_t )
+    .obi_req_t       ( obi_req_t       ),
+    .obi_rsp_t       ( obi_rsp_t       ),
+    .a_chan_t        ( obi_a_chan_t    ),
+    .r_chan_t        ( obi_r_chan_t    )
   ) i_serial_link_2 (
       .clk_i         ( clk_2           ),
       .rst_ni        ( rst_2_n         ),
@@ -154,28 +135,6 @@ module tb_obi_slink;
       .ddr_i         ( ddr_o           ),
       .ddr_o         ( ddr_i           )
   );
-
-  // APB DV interfaces
-  APB_DV #(
-    .ADDR_WIDTH (RegAddrWidth),
-    .DATA_WIDTH (RegDataWidth)
-  ) cfg_1(clk_reg), cfg_2(clk_reg);
-
-  `APB_ASSIGN_TO_REQ(apb_req_1, cfg_1)
-  `APB_ASSIGN_FROM_RESP(cfg_1, apb_rsp_1)
-
-  `APB_ASSIGN_TO_REQ(apb_req_2, cfg_2)
-  `APB_ASSIGN_FROM_RESP(cfg_2, apb_rsp_2)
-
-  typedef apb_test::apb_driver #(
-    .ADDR_WIDTH ( RegAddrWidth  ),
-    .DATA_WIDTH ( RegDataWidth  ),
-    .TA ( 100ps         ),
-    .TT ( 500ps         )
-  ) apb_master_t;
-
-  static apb_master_t apb_master_1 = new ( cfg_1 );
-  static apb_master_t apb_master_2 = new ( cfg_2 );
 
   // OBI DV interfaces
   OBI_BUS_DV #(
@@ -366,26 +325,6 @@ module tb_obi_slink;
     mst_done[1] = 1;
   end
 
-  // Stimuli process (APB config and end-of-test)
-  initial begin : stimuli_process
-    apb_master_1.reset_master();
-    apb_master_2.reset_master();
-    fork
-      wait_for_reset_1();
-      wait_for_reset_2();
-    join
-    $info("[SYS] Reset complete");
-    fork
-      start_link(apb_master_1, 1);
-      start_link(apb_master_2, 2);
-    join
-    $info("[SYS] Links are ready");
-    while (mst_done != '1) begin
-      @(posedge clk_1);
-    end
-    stop_sim();
-  end
-
   // ==============
   //    Tasks
   // ==============
@@ -405,41 +344,6 @@ module tb_obi_slink;
     $display("[SYS] Simulation Stopped (%d ns)", $time);
     $stop();
   endtask
-
-  task automatic cfg_write(apb_master_t drv, cfg_addr_t addr, cfg_data_t data, cfg_strb_t strb='1);
-    automatic logic resp;
-    drv.write(addr, data, strb, resp);
-    assert (!resp) else $error("Not able to write cfg reg");
-  endtask
-
-  task automatic cfg_read(apb_master_t drv, cfg_addr_t addr, output cfg_data_t data);
-    automatic logic resp;
-    drv.read(addr, data, resp);
-    assert (!resp) else $error("Not able to write cfg reg");
-  endtask
-
-  task automatic start_link(apb_master_t drv, int id);
-    // automatic phy_data_t pattern, pattern_q[$];
-    // automatic cfg_data_t data;
-    // $info("[LINK%0d]: Enabling clock and deassert link reset.", id);
-    // // Reset and clock gate sequence, isolation remains enabled
-    // // De-assert reset
-    // cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h300);
-    // // Assert reset
-    // cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h302);
-    // // Enable clock
-    // cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h303);
-    // // Wait for some clock cycles
-    // repeat(50) drv.cycle_end();
-    // // De-isolate ports
-    // $info("[LINK%0d] Enabling ports...",id);
-    // cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h03);
-    // do begin
-    //   cfg_read(drv, `SLINK_REG_ISOLATED_REG_OFFSET, data);
-    // end while(data != 0); // Wait until both isolation status bits are 0 to
-    //                       // indicate disabling of isolation
-    // $info("[LINK%0d] Link is ready", id);
-  endtask;
 
 endmodule : tb_obi_slink
 
