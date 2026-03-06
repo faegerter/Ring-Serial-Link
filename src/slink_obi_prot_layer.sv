@@ -172,7 +172,7 @@ end
 
     obi_out_req_o.a = a_chan_t'(payload_in.obi_ch);
     obi_in_rsp_o.r = r_chan_t'(payload_in.obi_ch);
-    
+
         if (axis_in_req_i.tvalid) begin
           obi_out_req_o.req = (payload_in.hdr == slink_pkg::TagA);
           obi_in_rsp_o.rvalid = (payload_in.hdr == slink_pkg::TagR);
@@ -188,8 +188,6 @@ end
 
   end
 
-  assign entropy_d = entropy_q + (axis_out_req_o.tvalid & axis_out_rsp_i.tready);
-  `FF(entropy_q, entropy_d, '0)
 
 
   //////////////////////
