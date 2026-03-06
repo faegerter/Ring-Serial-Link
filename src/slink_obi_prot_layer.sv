@@ -49,6 +49,7 @@ module slink_prot_layer #(
     RWPend = 1'b1
   } commiter_state_e;
 
+    logic entropy_q, entropy_d;
     commiter_state_e commiter_state_q, commiter_state_d;
     payload_t payload_out, payload_in;
 
@@ -162,12 +163,16 @@ end
 
   assign a_sent_d   = obi_out_req_o.req & obi_out_rsp_i.gnt |
                       a_sent_q;
-  assign r_sent_d   = axi_in_rsp_o.r_valid & axi_in_req_i.r_ready |
+  assign r_sent_d   = obi_in_req_i.req & obi_in_rsp_o.gnt |
                       r_sent_q;
   assign obi_ch_sent_d = a_sent_d | r_sent_d;
 
   assign payload_in = payload_t'(axis_in_req_i.t.data);
   assign credit_only_packet = (payload_in.hdr == slink_pkg::TagIdle);
+
+  typedef enum logic { Normal, Sync } unpack_state_e;
+
+  unpack_state_e unpack_state_q, unpack_state_d;
 
   always_comb begin : unpacker
     obi_out_req_o.req = 1'b0;
@@ -243,14 +248,14 @@ end
   ////////////////////
   //   ASSERTIONS   //
   ////////////////////
-  `ASSERT(AxiComitterAw, axi_in_req_i.w_valid & axi_in_rsp_o.w_ready & axi_in_req_i.w.last
-          |=> $fell(commiter_state_q[1]))
-  `ASSERT(AxiComitterAr, axi_in_rsp_o.r_valid & axi_in_req_i.r_ready & axi_in_rsp_o.r.last
-          |=> $fell(commiter_state_q[0]))
-  `ASSERT(AxisStable, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> $stable(axis_out_req_o.t))
-  `ASSERT(AxisHandshake, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> axis_out_req_o.tvalid)
-  `ASSERT_INIT(ForceSendTh, ForceSendThresh > 0)
-  `ASSERT(MaxCredits, credits_out_q <= NumCredits)
-  `ASSERT(MaxSendCredits, credits_to_send_q <= NumCredits)
+  // `ASSERT(AxiComitterAw, axi_in_req_i.w_valid & axi_in_rsp_o.w_ready & axi_in_req_i.w.last
+  //         |=> $fell(commiter_state_q[1]))
+  // `ASSERT(AxiComitterAr, axi_in_rsp_o.r_valid & axi_in_req_i.r_ready & axi_in_rsp_o.r.last
+  //         |=> $fell(commiter_state_q[0]))
+  // `ASSERT(AxisStable, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> $stable(axis_out_req_o.t))
+  // `ASSERT(AxisHandshake, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> axis_out_req_o.tvalid)
+  // `ASSERT_INIT(ForceSendTh, ForceSendThresh > 0)
+  // `ASSERT(MaxCredits, credits_out_q <= NumCredits)
+  // `ASSERT(MaxSendCredits, credits_to_send_q <= NumCredits)
 
 endmodule

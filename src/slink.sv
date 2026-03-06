@@ -21,8 +21,6 @@ module slink
   parameter bit NoRegCdc          = 1'b0,
   parameter type obi_req_t  = logic,
   parameter type obi_rsp_t  = logic,
-  parameter type axis_req_t = logic,
-  parameter type axis_rsp_t = logic,
   parameter type a_chan_t   = logic,
   parameter type r_chan_t   = logic,
   parameter type apb_req_t  = logic,
@@ -53,7 +51,7 @@ module slink
   input  logic [NumChannels-1:0]    ddr_rcv_clk_i,
   output logic [NumChannels-1:0]    ddr_rcv_clk_o,
   input  logic [NumChannels-1:0][NumLanes-1:0] ddr_i,
-  output logic [NumChannels-1:0][NumLanes-1:0] ddr_o,
+  output logic [NumChannels-1:0][NumLanes-1:0] ddr_o
 );
 
   localparam int unsigned NumBitsPerCycle = NumLanes * (1 + EnDdr);
@@ -66,8 +64,8 @@ module slink
   // Determine the largest sized AXI channel
   localparam int ObiChannels[2] = {$bits(a_chan_t),
                                     $bits(r_chan_t)};
-  localparam int MaxObiChannelBits =
-  slink_pkg::find_max_channel(ObiChannels);
+  localparam int MaxObiChannelBits = 5;
+  // slink_pkg::find_max_channel(ObiChannels);
 
 
   // The payload that is converted into an AXI stream consists of

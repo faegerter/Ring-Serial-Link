@@ -147,7 +147,7 @@ module slink_reg (
         is_external = '0;
         is_valid_addr = '1; // No error checking on valid address access
         is_invalid_rw = '0;
-        decoded_reg_strb.ctrl = cpuif_req_masked & (cpuif_addr == 12'h0);
+        decoded_reg_strb.ctrl = cpuif_req_masked & (cpuif_addr == 12'h0) & !cpuif_req_is_wr;
         decoded_reg_strb.isolated = cpuif_req_masked & (cpuif_addr == 12'h4) & !cpuif_req_is_wr;
         is_external |= cpuif_req_masked & (cpuif_addr == 12'h4) & !cpuif_req_is_wr;
         decoded_reg_strb.raw_mode_en = cpuif_req_masked & (cpuif_addr == 12'h8) & cpuif_req_is_wr;
@@ -207,24 +207,6 @@ module slink_reg (
             struct {
                 logic next;
                 logic load_next;
-            } clk_ena;
-            struct {
-                logic next;
-                logic load_next;
-            } reset_n;
-            struct {
-                logic next;
-                logic load_next;
-            } axi_in_isolate;
-            struct {
-                logic next;
-                logic load_next;
-            } axi_out_isolate;
-        } ctrl;
-        struct {
-            struct {
-                logic next;
-                logic load_next;
             } raw_mode_en;
         } raw_mode_en;
         struct {
@@ -276,20 +258,6 @@ module slink_reg (
         struct {
             struct {
                 logic value;
-            } clk_ena;
-            struct {
-                logic value;
-            } reset_n;
-            struct {
-                logic value;
-            } axi_in_isolate;
-            struct {
-                logic value;
-            } axi_out_isolate;
-        } ctrl;
-        struct {
-            struct {
-                logic value;
             } raw_mode_en;
         } raw_mode_en;
         struct {
@@ -330,98 +298,10 @@ module slink_reg (
     } field_storage_t;
     field_storage_t field_storage;
 
-    // Field: slink_reg.ctrl.clk_ena
-    always_comb begin
-        automatic logic [0:0] next_c;
-        automatic logic load_next_c;
-        next_c = field_storage.ctrl.clk_ena.value;
-        load_next_c = '0;
-        if(decoded_reg_strb.ctrl && decoded_req_is_wr) begin // SW write
-            next_c = (field_storage.ctrl.clk_ena.value & ~decoded_wr_biten[0:0]) | (decoded_wr_data[0:0] & decoded_wr_biten[0:0]);
-            load_next_c = '1;
-        end
-        field_combo.ctrl.clk_ena.next = next_c;
-        field_combo.ctrl.clk_ena.load_next = load_next_c;
-    end
-    always_ff @(posedge clk or negedge arst_n) begin
-        if(~arst_n) begin
-            field_storage.ctrl.clk_ena.value <= 1'h0;
-        end else begin
-            if(field_combo.ctrl.clk_ena.load_next) begin
-                field_storage.ctrl.clk_ena.value <= field_combo.ctrl.clk_ena.next;
-            end
-        end
-    end
-    assign hwif_out.ctrl.clk_ena.value = field_storage.ctrl.clk_ena.value;
-    // Field: slink_reg.ctrl.reset_n
-    always_comb begin
-        automatic logic [0:0] next_c;
-        automatic logic load_next_c;
-        next_c = field_storage.ctrl.reset_n.value;
-        load_next_c = '0;
-        if(decoded_reg_strb.ctrl && decoded_req_is_wr) begin // SW write
-            next_c = (field_storage.ctrl.reset_n.value & ~decoded_wr_biten[1:1]) | (decoded_wr_data[1:1] & decoded_wr_biten[1:1]);
-            load_next_c = '1;
-        end
-        field_combo.ctrl.reset_n.next = next_c;
-        field_combo.ctrl.reset_n.load_next = load_next_c;
-    end
-    always_ff @(posedge clk or negedge arst_n) begin
-        if(~arst_n) begin
-            field_storage.ctrl.reset_n.value <= 1'h1;
-        end else begin
-            if(field_combo.ctrl.reset_n.load_next) begin
-                field_storage.ctrl.reset_n.value <= field_combo.ctrl.reset_n.next;
-            end
-        end
-    end
-    assign hwif_out.ctrl.reset_n.value = field_storage.ctrl.reset_n.value;
-    // Field: slink_reg.ctrl.axi_in_isolate
-    always_comb begin
-        automatic logic [0:0] next_c;
-        automatic logic load_next_c;
-        next_c = field_storage.ctrl.axi_in_isolate.value;
-        load_next_c = '0;
-        if(decoded_reg_strb.ctrl && decoded_req_is_wr) begin // SW write
-            next_c = (field_storage.ctrl.axi_in_isolate.value & ~decoded_wr_biten[8:8]) | (decoded_wr_data[8:8] & decoded_wr_biten[8:8]);
-            load_next_c = '1;
-        end
-        field_combo.ctrl.axi_in_isolate.next = next_c;
-        field_combo.ctrl.axi_in_isolate.load_next = load_next_c;
-    end
-    always_ff @(posedge clk or negedge arst_n) begin
-        if(~arst_n) begin
-            field_storage.ctrl.axi_in_isolate.value <= 1'h1;
-        end else begin
-            if(field_combo.ctrl.axi_in_isolate.load_next) begin
-                field_storage.ctrl.axi_in_isolate.value <= field_combo.ctrl.axi_in_isolate.next;
-            end
-        end
-    end
-    assign hwif_out.ctrl.axi_in_isolate.value = field_storage.ctrl.axi_in_isolate.value;
-    // Field: slink_reg.ctrl.axi_out_isolate
-    always_comb begin
-        automatic logic [0:0] next_c;
-        automatic logic load_next_c;
-        next_c = field_storage.ctrl.axi_out_isolate.value;
-        load_next_c = '0;
-        if(decoded_reg_strb.ctrl && decoded_req_is_wr) begin // SW write
-            next_c = (field_storage.ctrl.axi_out_isolate.value & ~decoded_wr_biten[9:9]) | (decoded_wr_data[9:9] & decoded_wr_biten[9:9]);
-            load_next_c = '1;
-        end
-        field_combo.ctrl.axi_out_isolate.next = next_c;
-        field_combo.ctrl.axi_out_isolate.load_next = load_next_c;
-    end
-    always_ff @(posedge clk or negedge arst_n) begin
-        if(~arst_n) begin
-            field_storage.ctrl.axi_out_isolate.value <= 1'h1;
-        end else begin
-            if(field_combo.ctrl.axi_out_isolate.load_next) begin
-                field_storage.ctrl.axi_out_isolate.value <= field_combo.ctrl.axi_out_isolate.next;
-            end
-        end
-    end
-    assign hwif_out.ctrl.axi_out_isolate.value = field_storage.ctrl.axi_out_isolate.value;
+    assign hwif_out.ctrl.clk_ena.value = 1'h0;
+    assign hwif_out.ctrl.reset_n.value = 1'h1;
+    assign hwif_out.ctrl.axi_in_isolate.value = 1'h1;
+    assign hwif_out.ctrl.axi_out_isolate.value = 1'h1;
     // External register: slink_reg.isolated
 
     assign hwif_out.isolated.req = !decoded_req_is_wr ? decoded_reg_strb.isolated : '0;
@@ -704,11 +584,11 @@ module slink_reg (
 
     // Assign readback values to a flattened array
     logic [31:0] readback_array[15];
-    assign readback_array[0][0:0] = (decoded_reg_strb.ctrl && !decoded_req_is_wr) ? field_storage.ctrl.clk_ena.value : '0;
-    assign readback_array[0][1:1] = (decoded_reg_strb.ctrl && !decoded_req_is_wr) ? field_storage.ctrl.reset_n.value : '0;
+    assign readback_array[0][0:0] = (decoded_reg_strb.ctrl && !decoded_req_is_wr) ? 1'h0 : '0;
+    assign readback_array[0][1:1] = (decoded_reg_strb.ctrl && !decoded_req_is_wr) ? 1'h1 : '0;
     assign readback_array[0][7:2] = '0;
-    assign readback_array[0][8:8] = (decoded_reg_strb.ctrl && !decoded_req_is_wr) ? field_storage.ctrl.axi_in_isolate.value : '0;
-    assign readback_array[0][9:9] = (decoded_reg_strb.ctrl && !decoded_req_is_wr) ? field_storage.ctrl.axi_out_isolate.value : '0;
+    assign readback_array[0][8:8] = (decoded_reg_strb.ctrl && !decoded_req_is_wr) ? 1'h1 : '0;
+    assign readback_array[0][9:9] = (decoded_reg_strb.ctrl && !decoded_req_is_wr) ? 1'h1 : '0;
     assign readback_array[0][31:10] = '0;
     assign readback_array[1] = hwif_in.isolated.rd_ack ? hwif_in.isolated.rd_data : '0;
     assign readback_array[2] = hwif_in.raw_mode_in_data.rd_ack ? hwif_in.raw_mode_in_data.rd_data : '0;
