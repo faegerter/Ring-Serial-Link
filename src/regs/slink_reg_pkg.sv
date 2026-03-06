@@ -20,17 +20,6 @@ package slink_reg_pkg;
     localparam EnChAlloc = 'h0;
 
     typedef struct packed {
-        logic [29:0] _reserved_31_2;
-        logic axi_out;
-        logic axi_in;
-    } slink_reg__isolated__external__fields__in_t;
-
-    typedef struct {
-        logic rd_ack;
-        slink_reg__isolated__external__fields__in_t rd_data;
-    } slink_reg__isolated__external__in_t;
-
-    typedef struct packed {
         logic [15:0] _reserved_31_16;
         logic [15:0] raw_mode_in_data;
     } slink_reg__raw_mode_in_data__external__fields__in_t;
@@ -89,7 +78,6 @@ package slink_reg_pkg;
     } slink_reg__channel_alloc_rx_ctrl__external__in_t;
 
     typedef struct {
-        slink_reg__isolated__external__in_t isolated;
         slink_reg__raw_mode_in_data__external__in_t raw_mode_in_data;
         slink_reg__raw_mode_out_data_fifo_ctrl__external__in_t raw_mode_out_data_fifo_ctrl;
         slink_reg__flow_control_fifo_clear__external__in_t flow_control_fifo_clear;
@@ -100,31 +88,11 @@ package slink_reg_pkg;
 
     typedef struct {
         logic value;
-    } slink_reg__ctrl__clk_ena__out_t;
-
-    typedef struct {
-        logic value;
     } slink_reg__ctrl__reset_n__out_t;
 
     typedef struct {
-        logic value;
-    } slink_reg__ctrl__axi_in_isolate__out_t;
-
-    typedef struct {
-        logic value;
-    } slink_reg__ctrl__axi_out_isolate__out_t;
-
-    typedef struct {
-        slink_reg__ctrl__clk_ena__out_t clk_ena;
         slink_reg__ctrl__reset_n__out_t reset_n;
-        slink_reg__ctrl__axi_in_isolate__out_t axi_in_isolate;
-        slink_reg__ctrl__axi_out_isolate__out_t axi_out_isolate;
     } slink_reg__ctrl__out_t;
-
-    typedef struct {
-        logic req;
-        logic req_is_wr;
-    } slink_reg__isolated__external__out_t;
 
     typedef struct {
         logic value;
@@ -294,7 +262,6 @@ package slink_reg_pkg;
 
     typedef struct {
         slink_reg__ctrl__out_t ctrl;
-        slink_reg__isolated__external__out_t isolated;
         slink_reg__raw_mode_en__out_t raw_mode_en;
         slink_reg__raw_mode_in_data__external__out_t raw_mode_in_data;
         slink_reg__raw_mode_in_ch_sel__out_t raw_mode_in_ch_sel;

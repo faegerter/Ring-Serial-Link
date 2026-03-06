@@ -24,38 +24,12 @@ addrmap slink_reg #(
 
     reg ctrl {
         desc = "Global clock, isolation and reset control configuration";
-        default sw = r;
+        default sw = rw;
         default hw = r;
-        field {
-            name = "clk_ena";
-            desc = "Clock gate enable for network, link, physical layer. (active-high)";
-        } clk_ena[0:0] = 0x0;
         field {
             name = "reset_n";
             desc = "SW controlled synchronous reset. (active-low)";
-        } reset_n[1:1] = 0x1;
-        field {
-            name = "axi_in_isolate";
-            desc = "Isolate AXI slave in port. (active-high)";
-        } axi_in_isolate[8:8] = 0x1;
-        field {
-            name = "axi_out_isolate";
-            desc = "Isolate AXI master out port. (active-high)";
-        } axi_out_isolate[9:9] = 0x1;
-    };
-
-    reg isolated {
-        desc = "Isolation status of AXI ports";
-        default sw = r;
-        default hw = r;
-        field {
-            name = "axi_in";
-            desc = "slave in isolation status";
-        } axi_in[0:0] = 0x1;
-        field {
-            name = "axi_out";
-            desc = "master out isolation status";
-        } axi_out[1:1] = 0x1;
+        } reset_n[0:0] = 0x0;
     };
 
     reg tx_phy_clk_div {
@@ -253,7 +227,6 @@ addrmap slink_reg #(
 
 
              ctrl                        ctrl @0x0;
-    external isolated                    isolated @0x4;
              raw_mode_en                 raw_mode_en @0x8;
     external raw_mode_in_data            raw_mode_in_data @0x0c;
              raw_mode_in_ch_sel          raw_mode_in_ch_sel @0x10;

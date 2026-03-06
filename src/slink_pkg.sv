@@ -21,4 +21,5 @@ package slink_pkg;
     return max_value;
   endfunction
 
+  localparam logic [3:0] CFG_REG_SEL = 4'b0000;
 endpackage : slink_pkg

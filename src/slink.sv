@@ -17,19 +17,13 @@ module slink
 #(
   // Number of credits for flow control
   parameter int NumCredits        = 8,
-  // Whether to use a register CDC for the configuration registers
-  parameter bit NoRegCdc          = 1'b0,
+  parameter int ObiAddrWidth      = 32,
   parameter type obi_req_t  = logic,
   parameter type obi_rsp_t  = logic,
   parameter type axis_req_t = logic,
   parameter type axis_rsp_t = logic,
   parameter type a_chan_t   = logic,
-  parameter type r_chan_t   = logic,
-  parameter type apb_req_t  = logic,
-  parameter type apb_rsp_t  = logic,
-  parameter type apb_addr_t = logic[31:0],
-  parameter type apb_data_t = logic[31:0],
-  parameter type apb_strb_t = logic[3:0]
+  parameter type r_chan_t   = logic
 ) (
   // There are 3 different clock/resets:
   // 1) clk_i & rst_ni: "always-on" clock & reset coming from the SoC domain. Only config registers are conected to this clock
@@ -48,13 +42,14 @@ module slink
   output obi_rsp_t                  obi_in_rsp_o,
   output obi_req_t                  obi_out_req_o,
   input  obi_rsp_t                  obi_out_rsp_i,
-  input  apb_req_t                  apb_req_i,
-  output apb_rsp_t                  apb_rsp_o,
   input  logic [NumChannels-1:0]    ddr_rcv_clk_i,
   output logic [NumChannels-1:0]    ddr_rcv_clk_o,
   input  logic [NumChannels-1:0][NumLanes-1:0] ddr_i,
-  output logic [NumChannels-1:0][NumLanes-1:0] ddr_o,
+  output logic [NumChannels-1:0][NumLanes-1:0] ddr_o
 );
+
+  //TODO ask if this is the way it should be implemented
+  localparam int unsigned CfgRegSelBitSize = 4;
 
   localparam int unsigned NumBitsPerCycle = NumLanes * (1 + EnDdr);
   localparam int unsigned RawModeFifoDepth = 2**Log2RawModeTXFifoDepth;
@@ -96,10 +91,18 @@ module slink
   typedef logic tid_t;
   typedef logic tdest_t;
   typedef logic tuser_t;
+  
   `AXI_STREAM_TYPEDEF_ALL(axis, tdata_t, tstrb_t, tkeep_t, tid_t, tdest_t, tuser_t)
 
-  apb_req_t apb_req;
-  apb_rsp_t apb_rsp;
+  obi_req_t  obi_req_reg;
+  obi_rsp_t  obi_rsp_reg;
+  obi_req_t  obi_req_stream;
+  obi_rsp_t  obi_rsp_stream;
+
+  logic [3:0]   obi_byte_enable; 
+  logic [0:0]   obi_rid;
+  logic [0:0]   obi_aid;
+  logic         obi_err, obi_rready;
 
   axis_req_t  axis_out_req, axis_in_req;
   axis_rsp_t  axis_out_rsp, axis_in_rsp;
@@ -124,6 +127,17 @@ module slink
   logic [NumChannels-1:0]       alloc2phy_data_in_ready;
 
 
+  always_comb begin
+    if(obi_in_req_i.req & (obi_in_req_i.a.addr[ObiAddrWidth-1:ObiAddrWidth-CfgRegSelBitSize] == slink_pkg::CFG_REG_SEL))begin
+      obi_req_reg = obi_in_req_i;
+      obi_rsp_reg = obi_in_rsp_o;
+    end else begin 
+      obi_req_stream = obi_in_req_i;
+      obi_rsp_stream = obi_in_rsp_o;
+    end
+  end
+
+
   ////////////////////////
   //   PROTOCOL LAYER   //
   ////////////////////////
@@ -141,8 +155,8 @@ module slink
   ) i_serial_link_protocol (
     .clk_i          ( clk_sl_i        ),
     .rst_ni         ( rst_sl_ni       ),
-    .obi_in_req_i   ( obi_in_req_i    ),
-    .obi_in_rsp_o   ( obi_in_rsp_o    ),
+    .obi_in_req_i   ( obi_req_stream  ),
+    .obi_in_rsp_o   ( obi_rsp_stream  ),
     .obi_out_req_o  ( obi_out_req_o   ),
     .obi_out_rsp_i  ( obi_out_rsp_i   ),
     .axis_in_req_i  ( axis_in_req     ),
@@ -355,48 +369,28 @@ module slink
   //   CONFIGURATION REGISTERS   //
   /////////////////////////////////
 
-  if (!NoRegCdc) begin : gen_reg_cdc
-    apb_cdc #(
-      .LogDepth ( 1          ),
-      .req_t    ( apb_req_t  ),
-      .resp_t   ( apb_rsp_t  ),
-      .addr_t   ( apb_addr_t ),
-      .data_t   ( apb_data_t ),
-      .strb_t   ( apb_strb_t )
-    ) i_cdc_cfg (
-      .src_pclk_i    ( clk_reg_i   ),
-      .src_preset_ni ( rst_reg_ni  ),
-      .src_req_i     ( apb_req_i   ),
-      .src_resp_o    ( apb_rsp_o   ),
-
-      .dst_pclk_i    ( clk_i       ),
-      .dst_preset_ni ( rst_ni      ),
-      .dst_req_o     ( apb_req     ),
-      .dst_resp_i    ( apb_rsp     )
-    );
-  end else begin : gen_no_reg_cdc
-    assign apb_req = apb_req_i;
-    assign apb_rsp_o = apb_rsp;
-  end
-
   slink_reg i_serial_link_reg (
     .clk  (clk_i),
     .arst_n (rst_ni),
 
-    .s_apb_psel    (apb_req.psel),
-    .s_apb_penable (apb_req.penable),
-    .s_apb_pwrite  (apb_req.pwrite),
-    .s_apb_pprot   (apb_req.pprot),
-    .s_apb_paddr   (apb_req.paddr[slink_reg_pkg::SLINK_REG_MIN_ADDR_WIDTH-1:0]),
-    .s_apb_pwdata  (apb_req.pwdata),
-    .s_apb_pstrb   (apb_req.pstrb),
-    .s_apb_pready  (apb_rsp.pready),
-    .s_apb_prdata  (apb_rsp.prdata),
-    .s_apb_pslverr (apb_rsp.pslverr),
-
-    .hwif_in  (hw2reg),
-    .hwif_out (reg2hw)
+    .s_obi_req    ( obi_req_reg.req     ),
+    .s_obi_gnt    ( obi_rsp_reg.gnt     ),
+    .s_obi_addr   ( obi_req_reg.a.addr  ),
+    .s_obi_we     ( obi_req_reg.a.we    ),
+    .s_obi_be     ( obi_byte_enable     ),
+    .s_obi_wdata  ( obi_req_reg.a.wdata ),
+    .s_obi_aid    ( obi_aid             ),
+    .s_obi_rvalid ( obi_rsp_reg.rvalid  ),
+    .s_obi_rready ( obi_rready          ),
+    .s_obi_rdata  ( obi_rsp_reg.r.rdata ),
+    .s_obi_err    ( obi_err             ),
+    .s_obi_rid    ( obi_rid             ),
+    .hwif_in      ( hw2reg              ),
+    .hwif_out     ( reg2hw              )
   );
+  
+  assign obi_byte_enable = 4'b1111;
+  assign obi_aid = 1'b0;
 
 
   if (EnChAlloc) begin : gen_channel_alloc_regs
