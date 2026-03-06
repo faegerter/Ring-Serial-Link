@@ -78,7 +78,7 @@ module slink_prot_layer #(
             commiter_state_d = RWPend;
           end
         end
-        else if(obi_out_rsp_i.gnt) begin 
+        else if(obi_out_rsp_i.gnt & obi_out_req_o.req) begin 
           rvalid = 1'b1;
           commiter_state_d = RWPend;
         end
