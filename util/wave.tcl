@@ -11,23 +11,23 @@ for {set i 1} {$i < 3} {incr i} {
     set group_name "DDR $i"
     set num_channels [expr {[llength [find instances -bydu serial_link_physical -recursive]] / 2}]
 
-    add wave -noupdate -expand -group $group_name -ports /$tb_name/i_serial_link_$i/i_serial_link/*
+    add wave -noupdate -expand -group $group_name -ports /$tb_name/i_serial_link_$i/*
 
-    add wave -noupdate -group $group_name -group {NETWORK} /$tb_name/i_serial_link_$i/i_serial_link/i_serial_link_protocol/*
+    add wave -noupdate -group $group_name -group {NETWORK} /$tb_name/i_serial_link_$i/i_serial_link_protocol/*
 
-    add wave -noupdate -group $group_name -group {LINK} /$tb_name/i_serial_link_$i/i_serial_link/i_serial_link_data_link/*
+    add wave -noupdate -group $group_name -group {LINK} /$tb_name/i_serial_link_$i/i_serial_link_data_link/*
 
     if {$num_channels > 1} {
-        add wave -noupdate -group $group_name -group {CHANNEL_ALLOCATOR} -ports /$tb_name/i_serial_link_$i/i_serial_link/gen_channel_alloc/i_channel_allocator/*
+        add wave -noupdate -group $group_name -group {CHANNEL_ALLOCATOR} -ports /$tb_name/i_serial_link_$i/gen_channel_alloc/i_channel_allocator/*
     }
 
     for {set c 0} {$c < $num_channels} {incr c} {
-        add wave -noupdate -group $group_name -group PHY -group TX -group CH$c /$tb_name/i_serial_link_$i/i_serial_link/gen_phy_channels[$c]/i_serial_link_physical/i_serial_link_physical_tx/*
-        add wave -noupdate -group $group_name -group PHY -group RX -group CH$c /$tb_name/i_serial_link_$i/i_serial_link/gen_phy_channels[$c]/i_serial_link_physical/i_serial_link_physical_rx/*
+        add wave -noupdate -group $group_name -group PHY -group TX -group CH$c /$tb_name/i_serial_link_$i/gen_phy_channels[$c]/i_serial_link_physical/i_serial_link_physical_tx/*
+        add wave -noupdate -group $group_name -group PHY -group RX -group CH$c /$tb_name/i_serial_link_$i/gen_phy_channels[$c]/i_serial_link_physical/i_serial_link_physical_rx/*
     }
 
-    add wave -noupdate -group $group_name -group {CONFIG} /$tb_name/i_serial_link_$i/i_serial_link/reg2hw
-    add wave -noupdate -group $group_name -group {CONFIG} /$tb_name/i_serial_link_$i/i_serial_link/hw2reg
+    add wave -noupdate -group $group_name -group {CONFIG} /$tb_name/i_serial_link_$i/reg2hw
+    add wave -noupdate -group $group_name -group {CONFIG} /$tb_name/i_serial_link_$i/hw2reg
 }
 
 TreeUpdate [SetDefaultTree]

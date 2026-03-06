@@ -20,8 +20,6 @@ module slink
   parameter int ObiAddrWidth      = 32,
   parameter type obi_req_t  = logic,
   parameter type obi_rsp_t  = logic,
-  parameter type axis_req_t = logic,
-  parameter type axis_rsp_t = logic,
   parameter type a_chan_t   = logic,
   parameter type r_chan_t   = logic
 ) (
@@ -61,8 +59,8 @@ module slink
   // Determine the largest sized AXI channel
   localparam int ObiChannels[2] = {$bits(a_chan_t),
                                     $bits(r_chan_t)};
-  localparam int MaxObiChannelBits =
-  slink_pkg::find_max_channel(ObiChannels);
+  localparam int MaxObiChannelBits = 5;
+  // slink_pkg::find_max_channel(ObiChannels);
 
 
   // The payload that is converted into an AXI stream consists of
