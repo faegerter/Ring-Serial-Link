@@ -155,17 +155,12 @@ end
     .data_o     ( axis_reg_data_out   )
   );
 
-  logic obi_ch_sent_q, obi_ch_sent_d;
-  logic a_sent_q, a_sent_d;
-  logic r_sent_q, r_sent_d;
+  logic obi_ch_sent;
   logic credit_only_packet;
 
 
-  assign a_sent_d   = obi_out_req_o.req & obi_out_rsp_i.gnt |
-                      a_sent_q;
-  assign r_sent_d   = obi_in_req_i.req & obi_in_rsp_o.gnt |
-                      r_sent_q;
-  assign obi_ch_sent_d = a_sent_d | r_sent_d;
+
+  assign obi_ch_sent = (obi_out_req_o.req & obi_out_rsp_i.gnt) | (obi_in_rsp_o.rvalid & obi_out_rsp_i.rvalid);
 
   assign payload_in = payload_t'(axis_in_req_i.t.data);
   assign credit_only_packet = (payload_in.hdr == slink_pkg::TagIdle);
@@ -183,12 +178,6 @@ end
     obi_out_req_o.a = a_chan_t'(payload_in.obi_ch);
     obi_in_rsp_o.r = r_chan_t'(payload_in.obi_ch);
 
-    unpack_state_d = unpack_state_q;
-
-    // The incoming payload can pack a AW,W,AR,R + an additional B channel
-    // Both channels have to be accepted, if only one of them is accepted
-    // at a time we have to synch
-
         if (axis_in_req_i.tvalid) begin
           obi_out_req_o.req = (payload_in.hdr == slink_pkg::TagA);
           obi_in_rsp_o.rvalid = (payload_in.hdr == slink_pkg::TagR);
@@ -196,7 +185,7 @@ end
             axis_in_rsp_o.tready = 1'b1;
           end else begin
             // accept payload if either one of them was able to send
-            if (obi_ch_sent_d) begin
+            if (obi_ch_sent) begin
               axis_in_rsp_o.tready = 1'b1;
             end
           end
@@ -204,11 +193,6 @@ end
 
   end
 
-  assign entropy_d = entropy_q + (axis_out_req_o.tvalid & axis_out_rsp_i.tready);
-  `FF(entropy_q, entropy_d, '0)
-  `FF(a_sent_q, a_sent_d, '0)
-  `FF(r_sent_q, r_sent_d, '0)
-  `FF(obi_ch_sent_q, obi_ch_sent_d, '0)
 
 
   //////////////////////
