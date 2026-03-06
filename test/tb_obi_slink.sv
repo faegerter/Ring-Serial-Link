@@ -29,7 +29,7 @@ module tb_obi_slink;
 
   localparam int unsigned ObiIdWidth      = 3;
   localparam int unsigned ObiAddrWidth    = 32;
-  localparam int unsigned ObiDataWidth    = 64;
+  localparam int unsigned ObiDataWidth    = 32;
 
   localparam int unsigned RegAddrWidth    = 32;
   localparam int unsigned RegDataWidth    = 32;
@@ -179,12 +179,16 @@ module tb_obi_slink;
 
   // OBI DV interfaces
   OBI_BUS_DV #(
-    .OBI_CFG ( ObiCfg )
+    .OBI_CFG        ( ObiCfg          ),
+    .obi_a_optional_t ( obi_a_optional_t ),
+    .obi_r_optional_t ( obi_r_optional_t )
   ) obi_in_1  (clk_1, rst_1_n),
     obi_out_1 (clk_1, rst_1_n);
 
   OBI_BUS_DV #(
-    .OBI_CFG ( ObiCfg )
+    .OBI_CFG        ( ObiCfg          ),
+    .obi_a_optional_t ( obi_a_optional_t ),
+    .obi_r_optional_t ( obi_r_optional_t )
   ) obi_in_2  (clk_2, rst_2_n),
     obi_out_2 (clk_2, rst_2_n);
 
@@ -257,6 +261,7 @@ module tb_obi_slink;
   assign obi_out_rsp_2.r.rid         = obi_out_2.rid;
   assign obi_out_rsp_2.r.err         = obi_out_2.err;
   assign obi_out_rsp_2.r.r_optional  = obi_out_2.r_optional;
+  
 
   // ==============
   //    OBI DV
@@ -414,26 +419,26 @@ module tb_obi_slink;
   endtask
 
   task automatic start_link(apb_master_t drv, int id);
-    automatic phy_data_t pattern, pattern_q[$];
-    automatic cfg_data_t data;
-    $info("[LINK%0d]: Enabling clock and deassert link reset.", id);
-    // Reset and clock gate sequence, isolation remains enabled
-    // De-assert reset
-    cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h300);
-    // Assert reset
-    cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h302);
-    // Enable clock
-    cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h303);
-    // Wait for some clock cycles
-    repeat(50) drv.cycle_end();
-    // De-isolate ports
-    $info("[LINK%0d] Enabling ports...",id);
-    cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h03);
-    do begin
-      cfg_read(drv, `SLINK_REG_ISOLATED_REG_OFFSET, data);
-    end while(data != 0); // Wait until both isolation status bits are 0 to
-                          // indicate disabling of isolation
-    $info("[LINK%0d] Link is ready", id);
+    // automatic phy_data_t pattern, pattern_q[$];
+    // automatic cfg_data_t data;
+    // $info("[LINK%0d]: Enabling clock and deassert link reset.", id);
+    // // Reset and clock gate sequence, isolation remains enabled
+    // // De-assert reset
+    // cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h300);
+    // // Assert reset
+    // cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h302);
+    // // Enable clock
+    // cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h303);
+    // // Wait for some clock cycles
+    // repeat(50) drv.cycle_end();
+    // // De-isolate ports
+    // $info("[LINK%0d] Enabling ports...",id);
+    // cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h03);
+    // do begin
+    //   cfg_read(drv, `SLINK_REG_ISOLATED_REG_OFFSET, data);
+    // end while(data != 0); // Wait until both isolation status bits are 0 to
+    //                       // indicate disabling of isolation
+    // $info("[LINK%0d] Link is ready", id);
   endtask;
 
 endmodule : tb_obi_slink

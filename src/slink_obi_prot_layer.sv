@@ -68,7 +68,6 @@ module slink_prot_layer #(
   always_comb begin : commiter
     gnt  = 1'b0;
     rvalid = 1'b0;
-    obi_in_rsp_o = '0;
     commiter_state_d = commiter_state_q;
     
     unique case(commiter_state_q)
