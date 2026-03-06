@@ -89,7 +89,7 @@ module slink
   typedef logic tid_t;
   typedef logic tdest_t;
   typedef logic tuser_t;
-  
+
   `AXI_STREAM_TYPEDEF_ALL(axis, tdata_t, tstrb_t, tkeep_t, tid_t, tdest_t, tuser_t)
 
   obi_req_t  obi_req_reg;
@@ -126,12 +126,19 @@ module slink
 
 
   always_comb begin
-    if(obi_in_req_i.req & (obi_in_req_i.a.addr[ObiAddrWidth-1:ObiAddrWidth-CfgRegSelBitSize] == slink_pkg::CFG_REG_SEL))begin
-      obi_req_reg = obi_in_req_i;
-      obi_rsp_reg = obi_in_rsp_o;
-    end else begin 
-      obi_req_stream = obi_in_req_i;
-      obi_rsp_stream = obi_in_rsp_o;
+    obi_req_reg = '0;
+    obi_rsp_reg = '0;
+    obi_req_stream = '0;
+    obi_rsp_stream = '0;
+    
+    if(obi_in_req_i.req) begin
+      if((obi_in_req_i.a.addr[ObiAddrWidth-1:ObiAddrWidth-CfgRegSelBitSize] == slink_pkg::CFG_REG_SEL))begin
+        obi_req_reg = obi_in_req_i;
+        obi_rsp_reg = obi_in_rsp_o;
+      end else begin 
+        obi_req_stream = obi_in_req_i;
+        obi_rsp_stream = obi_in_rsp_o;
+      end
     end
   end
 

@@ -44,9 +44,11 @@ module slink_prot_layer #(
 );
 
 
-  typedef enum logic [0:0] {
-    Idle     = 1'b0,
-    RWPend = 1'b1
+  typedef enum logic [1:0] {
+    Idle     = 2'b00,
+    RPend    = 2'b01,
+    APend    = 2'b10,
+    ARPend   = 2'b11
   } commiter_state_e;
 
     logic entropy_q, entropy_d;
@@ -58,7 +60,7 @@ module slink_prot_layer #(
     logic credit_to_send_force;
 
 
-  logic gnt, rvalid;
+  logic gnt_a, gnt_r;
 
   logic axis_reg_valid_out, axis_reg_ready_out;
   logic axis_reg_valid_in, axis_reg_ready_in;
@@ -66,32 +68,57 @@ module slink_prot_layer #(
 
 
   always_comb begin : commiter
-    gnt  = 1'b0;
-    rvalid = 1'b0;
+    gnt_a  = 1'b0;
+    gnt_r = 1'b0;
     commiter_state_d = commiter_state_q;
     
     unique case(commiter_state_q)
       Idle: begin
         if (obi_in_req_i.req) begin
-          gnt = 1'b1;
-          if(obi_in_rsp_o.gnt) begin
-            commiter_state_d = RWPend;
-          end
+          gnt_a = (obi_out_req_o.req) ? entropy_q : 1'b1;
         end
-        else if(obi_out_rsp_i.gnt) begin 
-          rvalid = 1'b1;
-          commiter_state_d = RWPend;
+        if(obi_out_req_o.req) begin
+          gnt_r = (obi_in_req_i.req) ? ~entropy_q : 1'b1;
         end
-        //TODO add logic to differentiate between cfg registers and axi stream
+        if(obi_in_rsp_o.gnt & gnt_a) begin
+          commiter_state_d = APend;
+        end
+        if(obi_out_rsp_i.gnt & gnt_r) begin
+          commiter_state_d = RPend;
+        end
       end
-      RWPend: begin
-          if(obi_in_rsp_o.rvalid | obi_out_rsp_i.rvalid)begin
-            commiter_state_d = Idle;
+      APend: begin 
+        if(obi_out_req_o.req) begin 
+          gnt_r = 1'b1;
+        end
+        if(obi_in_rsp_o.rvalid)begin 
+          commiter_state_d = (gnt_r & obi_out_rsp_i.gnt) ? RPend : Idle;
+        end else begin
+          commiter_state_d = (gnt_r & obi_out_rsp_i.gnt) ? ARPend : APend;
+        end
+      end
+      RPend: begin 
+        if(obi_in_req_i.req) begin 
+          gnt_a = 1'b1;
+        end
+        if(obi_out_rsp_i.rvalid)begin 
+          commiter_state_d = (gnt_a & obi_in_rsp_o.gnt) ? APend : Idle;
+        end else begin
+          commiter_state_d = (gnt_a & obi_in_rsp_o.gnt) ? ARPend : RPend;
+        end
+      end
+      ARPend: begin
+          if(obi_in_rsp_o.rvalid)begin
+            commiter_state_d = RPend;
           end 
+          if(obi_out_rsp_i.rvalid)begin 
+            commiter_state_d = APend;
+          end
         end
       default:;
     endcase
 end
+
 
 
 `FF(commiter_state_q, commiter_state_d, Idle)
@@ -101,12 +128,12 @@ end
     payload_out = '0;
     payload_out.credit = credits_to_send_q;
 
-    if (gnt) begin
+    if (gnt_a) begin
       payload_out.obi_ch = obi_in_req_i.a;
       //TODO change slink_pkg to OBI channels
       payload_out.hdr = slink_pkg::TagA;
     end
-    else if(rvalid)begin 
+    else if(gnt_r)begin 
       payload_out.obi_ch = obi_out_rsp_i.r;
       //TODO change slink_pkg to OBI channels
       payload_out.hdr = slink_pkg::TagR;
@@ -128,7 +155,7 @@ end
 
     // Send responses if request was sent
     // TODOadd condition for sending gnt when communicating with cfg regs
-    obi_in_rsp_o.gnt = gnt & axis_reg_ready_in & axis_reg_valid_in;
+    obi_in_rsp_o.gnt = gnt_a & axis_reg_ready_in & axis_reg_valid_in;
   end
 
 
@@ -193,6 +220,8 @@ end
   end
 
 
+assign entropy_d = entropy_q + (axis_out_req_o.tvalid & axis_out_rsp_i.tready);
+`FF(entropy_q, entropy_d, '0);
 
   //////////////////////
   //   FLOW CONTROL   //
