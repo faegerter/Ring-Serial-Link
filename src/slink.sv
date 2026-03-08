@@ -59,8 +59,7 @@ module slink
   // Determine the largest sized AXI channel
   localparam int ObiChannels[2] = {$bits(a_chan_t),
                                     $bits(r_chan_t)};
-  localparam int MaxObiChannelBits = 5;
-  // slink_pkg::find_max_channel(ObiChannels);
+  localparam int MaxObiChannelBits = slink_pkg::find_max_channel(ObiChannels);
 
 
   // The payload that is converted into an AXI stream consists of
@@ -124,24 +123,33 @@ module slink
   logic [NumChannels-1:0]       phy2alloc_data_in_valid;
   logic [NumChannels-1:0]       alloc2phy_data_in_ready;
 
+  logic sel_subordinate_d, sel_subordinate_q;
+  logic allow_sel_d, allow_sel_q;
+  logic a_channel_pend;
 
   always_comb begin
     obi_req_reg = '0;
-    obi_rsp_reg = '0;
     obi_req_stream = '0;
-    obi_rsp_stream = '0;
-    
-    if(obi_in_req_i.req) begin
-      if((obi_in_req_i.a.addr[ObiAddrWidth-1:ObiAddrWidth-CfgRegSelBitSize] == slink_pkg::CFG_REG_SEL))begin
-        obi_req_reg = obi_in_req_i;
-        obi_rsp_reg = obi_in_rsp_o;
-      end else begin 
-        obi_req_stream = obi_in_req_i;
-        obi_rsp_stream = obi_in_rsp_o;
+    obi_in_rsp_o = '0;
+    sel_subordinate_d = sel_subordinate_q;
+    if(allow_sel_q && obi_in_req_i.req)begin
+      if(((obi_in_req_i.a.addr[ObiAddrWidth-1:ObiAddrWidth-CfgRegSelBitSize] == slink_pkg::CFG_REG_SEL)) != sel_subordinate_q)begin
+        sel_subordinate_d = ~sel_subordinate_q;
       end
+    end
+    if(sel_subordinate_q)begin 
+      obi_req_reg = obi_in_req_i;
+      obi_in_rsp_o = obi_rsp_reg;
+    end else begin 
+      obi_req_stream = obi_in_req_i;
+      obi_in_rsp_o = obi_rsp_stream;
     end
   end
 
+  assign allow_sel_d = (obi_rsp_reg.rvalid && sel_subordinate_q) || (~a_channel_pend && ~sel_subordinate_q);
+
+  `FF(sel_subordinate_q, sel_subordinate_d, 0)
+  `FF(allow_sel_q, allow_sel_d, 0)
 
   ////////////////////////
   //   PROTOCOL LAYER   //
@@ -167,7 +175,8 @@ module slink
     .axis_in_req_i  ( axis_in_req     ),
     .axis_in_rsp_o  ( axis_in_rsp     ),
     .axis_out_req_o ( axis_out_req    ),
-    .axis_out_rsp_i ( axis_out_rsp    )
+    .axis_out_rsp_i ( axis_out_rsp    ),
+    .a_channel_pend ( a_channel_pend  )
   );
 
   /////////////////////////
@@ -380,7 +389,7 @@ module slink
 
     .s_obi_req    ( obi_req_reg.req     ),
     .s_obi_gnt    ( obi_rsp_reg.gnt     ),
-    .s_obi_addr   ( obi_req_reg.a.addr  ),
+    .s_obi_addr   ( obi_req_reg.a.addr[11:0]  ),
     .s_obi_we     ( obi_req_reg.a.we    ),
     .s_obi_be     ( obi_byte_enable     ),
     .s_obi_wdata  ( obi_req_reg.a.wdata ),

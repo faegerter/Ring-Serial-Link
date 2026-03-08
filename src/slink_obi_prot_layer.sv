@@ -10,12 +10,6 @@
 
 
 
-//TODO put in the changed slink module
-//`include "obi/typedef.svh"
-//Link to file:
-//https://github.com/pulp-platform/obi/blob/main/include/obi/typedef.svh
-//TODO add to makefile etc such that it will be automatically downloaded and the structs are instatiated when compiling.
-
 module slink_prot_layer #(
     parameter type obi_req_t  = logic,
     parameter type obi_rsp_t  = logic,
@@ -40,7 +34,8 @@ module slink_prot_layer #(
   output axis_req_t axis_out_req_o,
   input  axis_rsp_t axis_out_rsp_i,
   input  axis_req_t axis_in_req_i,
-  output axis_rsp_t axis_in_rsp_o
+  output axis_rsp_t axis_in_rsp_o,
+  output logic      a_channel_pend
 );
 
 
@@ -70,12 +65,14 @@ module slink_prot_layer #(
   always_comb begin : commiter
     gnt_a  = 1'b0;
     gnt_r = 1'b0;
+    a_channel_pend = 1'b0;
     commiter_state_d = commiter_state_q;
     
     unique case(commiter_state_q)
       Idle: begin
         if (obi_in_req_i.req) begin
           gnt_a = (obi_out_req_o.req) ? entropy_q : 1'b1;
+          a_channel_pend = 1'b1;
         end
         if(obi_out_req_o.req) begin
           gnt_r = (obi_in_req_i.req) ? ~entropy_q : 1'b1;
@@ -88,6 +85,7 @@ module slink_prot_layer #(
         end
       end
       APend: begin 
+        a_channel_pend = 1'b1;
         if(obi_out_req_o.req) begin 
           gnt_r = 1'b1;
         end
@@ -100,6 +98,7 @@ module slink_prot_layer #(
       RPend: begin 
         if(obi_in_req_i.req) begin 
           gnt_a = 1'b1;
+          a_channel_pend = 1'b1;
         end
         if(obi_out_rsp_i.rvalid)begin 
           commiter_state_d = (gnt_a & obi_in_rsp_o.gnt) ? APend : Idle;
@@ -108,6 +107,7 @@ module slink_prot_layer #(
         end
       end
       ARPend: begin
+          a_channel_pend = 1'b1;
           if(obi_in_rsp_o.rvalid)begin
             commiter_state_d = RPend;
           end 
@@ -130,12 +130,10 @@ end
 
     if (gnt_a) begin
       payload_out.obi_ch = obi_in_req_i.a;
-      //TODO change slink_pkg to OBI channels
       payload_out.hdr = slink_pkg::TagA;
     end
     else if(gnt_r)begin 
       payload_out.obi_ch = obi_out_rsp_i.r;
-      //TODO change slink_pkg to OBI channels
       payload_out.hdr = slink_pkg::TagR;
     end
 
@@ -154,7 +152,6 @@ end
     end
 
     // Send responses if request was sent
-    // TODOadd condition for sending gnt when communicating with cfg regs
     obi_in_rsp_o.gnt = gnt_a & axis_reg_ready_in & axis_reg_valid_in;
   end
 
@@ -186,14 +183,11 @@ end
 
 
 
-  assign obi_ch_sent = (obi_out_req_o.req & obi_out_rsp_i.gnt) | (obi_in_rsp_o.rvalid & obi_out_rsp_i.rvalid);
+  assign obi_ch_sent = (obi_out_req_o.req & obi_out_rsp_i.gnt) | (obi_in_rsp_o.rvalid);
 
   assign payload_in = payload_t'(axis_in_req_i.t.data);
   assign credit_only_packet = (payload_in.hdr == slink_pkg::TagIdle);
 
-  typedef enum logic { Normal, Sync } unpack_state_e;
-
-  unpack_state_e unpack_state_q, unpack_state_d;
 
   always_comb begin : unpacker
     obi_out_req_o.req = 1'b0;
@@ -204,19 +198,18 @@ end
     obi_out_req_o.a = a_chan_t'(payload_in.obi_ch);
     obi_in_rsp_o.r = r_chan_t'(payload_in.obi_ch);
 
-        if (axis_in_req_i.tvalid) begin
-          obi_out_req_o.req = (payload_in.hdr == slink_pkg::TagA);
-          obi_in_rsp_o.rvalid = (payload_in.hdr == slink_pkg::TagR);
-          if (credit_only_packet) begin
-            axis_in_rsp_o.tready = 1'b1;
-          end else begin
-            // accept payload if either one of them was able to send
-            if (obi_ch_sent) begin
-              axis_in_rsp_o.tready = 1'b1;
-            end
-          end
+    if (axis_in_req_i.tvalid) begin
+      obi_out_req_o.req = (payload_in.hdr == slink_pkg::TagA);
+      obi_in_rsp_o.rvalid = (payload_in.hdr == slink_pkg::TagR);
+      if (credit_only_packet) begin
+        axis_in_rsp_o.tready = 1'b1;
+      end else begin
+        // accept payload if either one of them was able to send
+        if (obi_ch_sent) begin
+          axis_in_rsp_o.tready = 1'b1;
         end
-
+      end
+    end
   end
 
 
@@ -264,10 +257,10 @@ assign entropy_d = entropy_q + (axis_out_req_o.tvalid & axis_out_rsp_i.tready);
   //         |=> $fell(commiter_state_q[1]))
   // `ASSERT(AxiComitterAr, axi_in_rsp_o.r_valid & axi_in_req_i.r_ready & axi_in_rsp_o.r.last
   //         |=> $fell(commiter_state_q[0]))
-  // `ASSERT(AxisStable, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> $stable(axis_out_req_o.t))
-  // `ASSERT(AxisHandshake, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> axis_out_req_o.tvalid)
-  // `ASSERT_INIT(ForceSendTh, ForceSendThresh > 0)
-  // `ASSERT(MaxCredits, credits_out_q <= NumCredits)
-  // `ASSERT(MaxSendCredits, credits_to_send_q <= NumCredits)
+ //`ASSERT(AxisStable, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> $stable(axis_out_req_o.t))
+ //`ASSERT(AxisHandshake, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> axis_out_req_o.tvalid)
+ `ASSERT_INIT(ForceSendTh, ForceSendThresh > 0)
+ `ASSERT(MaxCredits, credits_out_q <= NumCredits)
+ `ASSERT(MaxSendCredits, credits_to_send_q <= NumCredits)
 
 endmodule
