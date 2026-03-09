@@ -132,12 +132,12 @@ module slink
     obi_req_stream = '0;
     obi_in_rsp_o = '0;
     sel_subordinate_d = sel_subordinate_q;
-    if(allow_sel_q && obi_in_req_i.req)begin
-      if(((obi_in_req_i.a.addr[ObiAddrWidth-1:ObiAddrWidth-CfgRegSelBitSize] == slink_pkg::CFG_REG_SEL)) != sel_subordinate_q)begin
+    if (allow_sel_q && obi_in_req_i.req) begin
+      if (((obi_in_req_i.a.addr[ObiAddrWidth-1:ObiAddrWidth-CfgRegSelBitSize] == slink_pkg::CFG_REG_SEL)) != sel_subordinate_q) begin
         sel_subordinate_d = ~sel_subordinate_q;
       end
     end
-    if(sel_subordinate_q)begin 
+    if (sel_subordinate_q) begin 
       obi_req_reg = obi_in_req_i;
       obi_in_rsp_o = obi_rsp_reg;
     end else begin 

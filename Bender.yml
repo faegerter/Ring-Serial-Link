@@ -12,7 +12,6 @@ package:
 
 dependencies:
   common_cells:        { git: "https://github.com/pulp-platform/common_cells.git",       version: 1.28.0 }
-  axi:                 { git: "https://github.com/pulp-platform/axi.git",                version: 0.39.0 }
   axi_stream:          { git: "https://github.com/pulp-platform/axi_stream.git",         version: 0.1.1  }
   obi:                 { git: "https://github.com/pulp-platform/obi.git",                version: 0.1.7  }
 
@@ -32,7 +31,6 @@ sources:
     - src/channel_allocator/slink_channel_despread_sfr.sv
     - src/channel_allocator/slink_channel_spread_sfr.sv
     - src/channel_allocator/slink_ch_alloc.sv
-    # - src/slink_prot_layer.sv
     - src/slink_obi_prot_layer.sv
     - src/slink_link_layer.sv
     - src/slink_phys_layer.sv
@@ -43,16 +41,11 @@ sources:
       files:
       - src/slink.sv
 
-    # Wrapper for additional isolation
-    # - src/slink_isolate.sv
-
     - target: slink_test
       include_dirs:
       - src/regs
       files:
-      # - test/tb_axi_slink.sv
       - test/tb_obi_slink.sv
-      # - test/tb_ch_calib_slink.sv
       - test/tb_stream_chopper.sv
       - test/tb_stream_chopper_dechopper.sv
       - test/tb_channel_allocator.sv

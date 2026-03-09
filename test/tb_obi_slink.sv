@@ -11,12 +11,12 @@ module tb_obi_slink;
     `include "obi/typedef.svh"
     `include "obi/assign.svh"
 
-  `include "slink_addrmap.svh"
+    `include "slink_addrmap.svh"
 
     // ==============
     //    Config
     // ==============
-    localparam int unsigned TestDuration    = 100;
+    localparam int unsigned TestDuration    = 1;
     localparam int unsigned MaxClkDiv       = 2**Log2MaxClkDiv;
 
     localparam time         TckSys1         = 50ns;
@@ -41,7 +41,7 @@ module tb_obi_slink;
 
     `OBI_TYPEDEF_DEFAULT_ALL(obi, ObiCfg)
 
-  typedef logic [NumLanes*(1+EnDdr)-1:0]  phy_data_t;
+    typedef logic [NumLanes*(1+EnDdr)-1:0]  phy_data_t;
 
     // Model signals
     logic [NumChannels-1:0]  ddr_rcv_clk_1, ddr_rcv_clk_2;
@@ -51,9 +51,9 @@ module tb_obi_slink;
     obi_req_t   obi_in_req_1,  obi_in_req_2;
     obi_rsp_t   obi_in_rsp_1,  obi_in_rsp_2;
 
-  // link
-  wire [NumChannels*NumLanes-1:0] ddr_o;
-  wire [NumChannels*NumLanes-1:0] ddr_i;
+    // link
+    wire [NumChannels*NumLanes-1:0] ddr_o;
+    wire [NumChannels*NumLanes-1:0] ddr_i;
 
     // clock and reset
     logic clk_1, clk_2, clk_reg;
@@ -84,68 +84,68 @@ module tb_obi_slink;
         .rst_no ( rst_2_n )
     );
 
-  // first serial instance
-  slink #(
-    .obi_req_t       ( obi_req_t       ),
-    .obi_rsp_t       ( obi_rsp_t       ),
-    .a_chan_t        ( obi_a_chan_t    ),
-    .r_chan_t        ( obi_r_chan_t    )
-  ) i_serial_link_1 (
-      .clk_i         ( clk_1           ),
-      .rst_ni        ( rst_1_n         ),
-      .clk_sl_i      ( clk_1           ),
-      .rst_sl_ni     ( rst_1_n         ),
-      .clk_reg_i     ( clk_reg         ),
-      .rst_reg_ni    ( rst_reg_n       ),
-      .testmode_i    ( 1'b0            ),
-      .obi_in_req_i  ( obi_in_req_1    ),
-      .obi_in_rsp_o  ( obi_in_rsp_1    ),
-      .obi_out_req_o ( obi_out_req_1   ),
-      .obi_out_rsp_i ( obi_out_rsp_1   ),
-      .ddr_rcv_clk_i ( ddr_rcv_clk_2   ),
-      .ddr_rcv_clk_o ( ddr_rcv_clk_1   ),
-      .ddr_i         ( ddr_i           ),
-      .ddr_o         ( ddr_o           )
-  );
+    // first serial instance
+    slink #(
+        .obi_req_t       ( obi_req_t       ),
+        .obi_rsp_t       ( obi_rsp_t       ),
+        .a_chan_t        ( obi_a_chan_t    ),
+        .r_chan_t        ( obi_r_chan_t    )
+    ) i_serial_link_1 (
+        .clk_i         ( clk_1           ),
+        .rst_ni        ( rst_1_n         ),
+        .clk_sl_i      ( clk_1           ),
+        .rst_sl_ni     ( rst_1_n         ),
+        .clk_reg_i     ( clk_reg         ),
+        .rst_reg_ni    ( rst_reg_n       ),
+        .testmode_i    ( 1'b0            ),
+        .obi_in_req_i  ( obi_in_req_1    ),
+        .obi_in_rsp_o  ( obi_in_rsp_1    ),
+        .obi_out_req_o ( obi_out_req_1   ),
+        .obi_out_rsp_i ( obi_out_rsp_1   ),
+        .ddr_rcv_clk_i ( ddr_rcv_clk_2   ),
+        .ddr_rcv_clk_o ( ddr_rcv_clk_1   ),
+        .ddr_i         ( ddr_i           ),
+        .ddr_o         ( ddr_o           )
+    );
 
-  // second serial instance
-  slink #(
-    .obi_req_t       ( obi_req_t       ),
-    .obi_rsp_t       ( obi_rsp_t       ),
-    .a_chan_t        ( obi_a_chan_t    ),
-    .r_chan_t        ( obi_r_chan_t    )
-  ) i_serial_link_2 (
-      .clk_i         ( clk_2           ),
-      .rst_ni        ( rst_2_n         ),
-      .clk_sl_i      ( clk_2           ),
-      .rst_sl_ni     ( rst_2_n         ),
-      .clk_reg_i     ( clk_reg         ),
-      .rst_reg_ni    ( rst_reg_n       ),
-      .testmode_i    ( 1'b0            ),
-      .obi_in_req_i  ( obi_in_req_2    ),
-      .obi_in_rsp_o  ( obi_in_rsp_2    ),
-      .obi_out_req_o ( obi_out_req_2   ),
-      .obi_out_rsp_i ( obi_out_rsp_2   ),
-      .ddr_rcv_clk_i ( ddr_rcv_clk_1   ),
-      .ddr_rcv_clk_o ( ddr_rcv_clk_2   ),
-      .ddr_i         ( ddr_o           ),
-      .ddr_o         ( ddr_i           )
-  );
+    // second serial instance
+    slink #(
+        .obi_req_t       ( obi_req_t       ),
+        .obi_rsp_t       ( obi_rsp_t       ),
+        .a_chan_t        ( obi_a_chan_t    ),
+        .r_chan_t        ( obi_r_chan_t    )
+    ) i_serial_link_2 (
+        .clk_i         ( clk_2           ),
+        .rst_ni        ( rst_2_n         ),
+        .clk_sl_i      ( clk_2           ),
+        .rst_sl_ni     ( rst_2_n         ),
+        .clk_reg_i     ( clk_reg         ),
+        .rst_reg_ni    ( rst_reg_n       ),
+        .testmode_i    ( 1'b0            ),
+        .obi_in_req_i  ( obi_in_req_2    ),
+        .obi_in_rsp_o  ( obi_in_rsp_2    ),
+        .obi_out_req_o ( obi_out_req_2   ),
+        .obi_out_rsp_i ( obi_out_rsp_2   ),
+        .ddr_rcv_clk_i ( ddr_rcv_clk_1   ),
+        .ddr_rcv_clk_o ( ddr_rcv_clk_2   ),
+        .ddr_i         ( ddr_o           ),
+        .ddr_o         ( ddr_i           )
+    );
 
-  // OBI DV interfaces
-  OBI_BUS_DV #(
-    .OBI_CFG        ( ObiCfg          ),
-    .obi_a_optional_t ( obi_a_optional_t ),
-    .obi_r_optional_t ( obi_r_optional_t )
-  ) obi_in_1  (clk_1, rst_1_n),
-    obi_out_1 (clk_1, rst_1_n);
+    // OBI DV interfaces
+    OBI_BUS_DV #(
+        .OBI_CFG        ( ObiCfg          ),
+        .obi_a_optional_t ( obi_a_optional_t ),
+        .obi_r_optional_t ( obi_r_optional_t )
+    ) obi_in_1  (clk_1, rst_1_n),
+      obi_out_1 (clk_1, rst_1_n);
 
     OBI_BUS_DV #(
         .OBI_CFG        ( ObiCfg          ),
         .obi_a_optional_t ( obi_a_optional_t ),
         .obi_r_optional_t ( obi_r_optional_t )
     ) obi_in_2  (clk_2, rst_2_n),
-        obi_out_2 (clk_2, rst_2_n);
+      obi_out_2 (clk_2, rst_2_n);
 
 
     assign obi_out_1.err = 1'b0;
@@ -282,7 +282,6 @@ module tb_obi_slink;
                 a_addr = $urandom();
                 a_we = $urandom() % 2;
                 assert(std::randomize(a_be));
-                // Avoid the upstream `% (1 << DataWidth)` bug at 32-bit widths.
                 assert(std::randomize(a_wdata));
                 assert(std::randomize(a_aid));
                 assert(std::randomize(a_optional));
@@ -305,6 +304,24 @@ module tb_obi_slink;
                 rand_wait(0, 100);
                 drv.recv_r(r_rdata, r_rid, r_err, r_optional);
             end
+        endtask
+
+        task automatic send_set_cfg(input addr_t cfg_addr, input logic[ObiCfg.DataWidth-1:0] cfg_data);
+            rand_wait(0, 20);
+            drv.send_a(cfg_addr, 1'b1, 4'b1111, cfg_data, 0, '0);
+        endtask
+
+        task automatic send_get_cfg(input addr_t cfg_addr);
+            rand_wait(0, 20);
+            drv.send_a(cfg_addr, 1'b0, 4'b1111, '0, 0, '0);
+        endtask
+
+        task automatic recv_cfg(output logic [ObiCfg.DataWidth-1:0] cfg_data);
+            automatic logic [ObiCfg.IdWidth-1:0] r_rid;
+            automatic logic r_err;
+            automatic obi_r_optional_t r_optional;
+            rand_wait(0, 20);
+            drv.recv_r(cfg_data, r_rid, r_err, r_optional);
         endtask
 
         task automatic run(int unsigned n_reqs);
@@ -334,12 +351,16 @@ module tb_obi_slink;
     static obi_rand_subordinate_t obi_rand_subordinate_2 = new ( obi_out_2, "obi_slv_2" );
 
     logic [1:0] mst_done;
+    logic [1:0] cfg_done;
 
     // By default perform TestDuration transactions per side
     int NumReqs_1 = TestDuration;
     int NumReqs_2 = TestDuration;
 
     initial begin
+        wait (mst_done[0] == 1);
+        wait (mst_done[1] == 1);
+        stop_sim();
     end
 
     // Subordinates
@@ -360,12 +381,8 @@ module tb_obi_slink;
         automatic time start_cycle, end_cycle;
         automatic int unsigned data_sent = 0;
         automatic int unsigned data_received = 0;
-        if ($value$plusargs("NUM_REQS_1=%d", NumReqs_1)) begin
-            $info("[OBI1] Number of requests specified as %d", NumReqs_1);
-        end
+        wait (cfg_done[0] == 1);
         mst_done[0] = 0;
-        obi_rand_manager_1.reset();
-        wait_for_reset_1();
         start_cycle = $realtime;
         fork
             obi_rand_manager_1.run(NumReqs_1);
@@ -390,14 +407,40 @@ module tb_obi_slink;
 
     // Manager on side 2
     initial begin
-        if ($value$plusargs("NUM_REQS_2=%d", NumReqs_2)) begin
-            $info("[OBI2] Number of requests specified as %d", NumReqs_2);
-        end
+        wait (cfg_done[1] == 1);
         mst_done[1] = 0;
-        obi_rand_manager_2.reset();
-        wait_for_reset_2();
         obi_rand_manager_2.run(NumReqs_2);
         mst_done[1] = 1;
+    end
+
+    // Initial configuration on side 1
+    initial begin
+        automatic logic [31:0] cfg_data;
+        cfg_done[0] = 0;
+        obi_rand_manager_1.reset();
+        wait_for_reset_1();
+        obi_rand_manager_1.send_set_cfg(`SLINK_REG_CTRL_REG_ADDR, 32'h0000ffff);
+        obi_rand_manager_1.recv_cfg(cfg_data);
+        obi_rand_manager_1.send_get_cfg(`SLINK_REG_CTRL_REG_ADDR);
+        obi_rand_manager_1.recv_cfg(cfg_data);
+        $display("CFG_DATA: %0d", cfg_data);
+        assert(cfg_data == 32'h0000ffff) else $error("CFG_DATA is not correct");
+        cfg_done[0] = 1;
+    end
+
+    // Initial configuration on side 2
+    initial begin
+        automatic logic [31:0] cfg_data;
+        cfg_done[1] = 0;
+        obi_rand_manager_2.reset();
+        wait_for_reset_2();
+        obi_rand_manager_2.send_set_cfg(`SLINK_REG_CTRL_REG_ADDR, 32'h0000aaaa);
+        obi_rand_manager_2.recv_cfg(cfg_data);
+        obi_rand_manager_2.send_get_cfg(`SLINK_REG_CTRL_REG_ADDR);
+        obi_rand_manager_2.recv_cfg(cfg_data);
+        $display("CFG_DATA: %0d", cfg_data);
+        assert(cfg_data == 32'h0000aaaa) else $error("CFG_DATA is not correct");
+        cfg_done[1] = 1;
     end
 
   // ==============

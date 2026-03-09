@@ -33,7 +33,7 @@ gen-regs: slink-gen-regs
 # QuestaSim Simulation #
 ########################
 
-TB_DUT ?= tb_axi_slink
+TB_DUT ?= tb_obi_slink
 
 BENDER_FLAGS := -t slink_test -t test
 
@@ -88,7 +88,7 @@ VCS_FLAGS    += -Mlib=$(WORK)
 VCS_FLAGS    += -Mdir=$(WORK)
 
 VCS_PARAMS  ?=
-TB_DUT 		?= tb_axi_serial_link
+TB_DUT 		?= tb_obi_slink
 
 VLOGAN  	?= vlogan
 VCS		    ?= vcs
