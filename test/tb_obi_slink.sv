@@ -279,6 +279,7 @@ module tb_obi_slink;
             repeat (n_reqs) begin
                 rand_wait(0, 100);
 
+                // Generate random address
                 a_addr = $urandom();
                 a_we = $urandom() % 2;
                 assert(std::randomize(a_be));
