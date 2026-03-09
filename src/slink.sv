@@ -40,8 +40,8 @@ module slink
   output obi_rsp_t                  obi_in_rsp_o,
   output obi_req_t                  obi_out_req_o,
   input  obi_rsp_t                  obi_out_rsp_i,
-  input  obi_req_t                  obi_reg_i,
-  output obi_rsp_t                  obi_reg_o,
+  input  obi_req_t                  obi_reg_req_i,
+  output obi_rsp_t                  obi_reg_rsp_o,
   input  logic [NumChannels-1:0]    ddr_rcv_clk_i,
   output logic [NumChannels-1:0]    ddr_rcv_clk_o,
   input  logic [NumChannels-1:0][NumLanes-1:0] ddr_i,
@@ -91,7 +91,7 @@ module slink
 
   `AXI_STREAM_TYPEDEF_ALL(axis, tdata_t, tstrb_t, tkeep_t, tid_t, tdest_t, tuser_t)
 
-  logic      obi_rready;
+  logic       obi_reg_rready;
 
   axis_req_t  axis_out_req, axis_in_req;
   axis_rsp_t  axis_out_rsp, axis_in_rsp;
@@ -351,24 +351,28 @@ module slink
     .clk  (clk_i),
     .arst_n (rst_ni),
 
-    .s_obi_req    ( obi_reg_i.req     ),
-    .s_obi_gnt    ( obi_reg_o.gnt     ),
-    .s_obi_addr   ( obi_reg_i.a.addr  ),
-    .s_obi_we     ( obi_reg_i.a.we    ),
-    .s_obi_be     ( obi_reg_i.a.be    ),
-    .s_obi_wdata  ( obi_reg_i.a.wdata ),
-    .s_obi_aid    ( obi_reg_i.a.aid   ),
-    .s_obi_rvalid ( obi_reg_o.rvalid  ),
-    .s_obi_rready ( obi_rready        ),
-    .s_obi_rdata  ( obi_reg_o.r.rdata ),
-    .s_obi_err    ( obi_reg_o.r.err   ),
-    .s_obi_rid    ( obi_reg_o.r.rid   ),
+    .s_obi_req    ( obi_reg_req_i.req      ),
+    .s_obi_gnt    ( obi_reg_rsp_o.gnt      ),
+    .s_obi_addr   ( obi_reg_req_i.a.addr   ),
+    .s_obi_we     ( obi_reg_req_i.a.we     ),
+    .s_obi_be     ( obi_reg_req_i.a.be     ),
+    .s_obi_wdata  ( obi_reg_req_i.a.wdata  ),
+    .s_obi_aid    ( obi_reg_req_i.a.aid    ),
+    .s_obi_rvalid ( obi_reg_rsp_o.rvalid   ),
+    .s_obi_rready ( obi_reg_rready         ),
+    .s_obi_rdata  ( obi_reg_rsp_o.r.rdata  ),
+    .s_obi_err    ( obi_reg_rsp_o.r.err    ),
+    .s_obi_rid    ( obi_reg_rsp_o.r.rid    ),
     .hwif_in      ( hw2reg            ),
     .hwif_out     ( reg2hw            )
   );
 
-//TODO remove the rready in hte cfg regs and then remove this
-assign obi_rready = 1'b1;
+  //TODO remove the rready in hte cfg regs and then remove this and get rid of this annoying optional mess
+  always_comb begin
+    obi_reg_rsp_o.r.r_optional = '0;
+    obi_reg_rready = '1;
+  end
+
 
   if (EnChAlloc) begin : gen_channel_alloc_regs
     `SLINK_ASSIGN_RDL_WR_ACK(channel_alloc_tx_ctrl)

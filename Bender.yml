@@ -45,6 +45,7 @@ sources:
       include_dirs:
       - src/regs
       files:
+      - test/obi_test_fix_pkg.sv
       - test/tb_obi_slink.sv
       - test/tb_stream_chopper.sv
       - test/tb_stream_chopper_dechopper.sv

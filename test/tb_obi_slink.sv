@@ -3,10 +3,48 @@
 // SPDX-License-Identifier: SHL-0.51
 //
 
+`define OBI_CONNECT_MANAGER(_if, _req, _rsp) \
+    /* A channel: interface -> struct */ \
+    assign _req.a.addr       = _if.addr; \
+    assign _req.a.we         = _if.we; \
+    assign _req.a.be         = _if.be; \
+    assign _req.a.wdata      = _if.wdata; \
+    assign _req.a.aid        = _if.aid; \
+    assign _req.a.a_optional = _if.a_optional; \
+    assign _req.req          = _if.req; \
+    /* R channel + grant: struct -> interface */ \
+    assign _if.gnt           = _rsp.gnt; \
+    assign _if.rvalid        = _rsp.rvalid; \
+    assign _if.rdata         = _rsp.r.rdata; \
+    assign _if.rid           = _rsp.r.rid; \
+    assign _if.err           = _rsp.r.err; \
+    assign _if.r_optional    = _rsp.r.r_optional;
+
+
+`define OBI_CONNECT_SUBORDINATE(_if, _req, _rsp) \
+    /* A channel: struct -> interface */ \
+    assign _if.addr          = _req.a.addr; \
+    assign _if.we            = _req.a.we; \
+    assign _if.be            = _req.a.be; \
+    assign _if.wdata         = _req.a.wdata; \
+    assign _if.aid           = _req.a.aid; \
+    assign _if.a_optional    = _req.a.a_optional; \
+    assign _if.req           = _req.req; \
+    /* R channel + grant: interface -> struct */ \
+    assign _rsp.gnt          = _if.gnt; \
+    assign _rsp.rvalid       = _if.rvalid; \
+    assign _rsp.r.rdata      = _if.rdata; \
+    assign _rsp.r.rid        = _if.rid; \
+    assign _rsp.r.err        = _if.err; \
+    assign _rsp.r.r_optional = _if.r_optional;
+
+
+
 module tb_obi_slink;
 
     import slink_reg_pkg::*;
     import obi_pkg::*;
+    import obi_test_fix_pkg::*;
 
     `include "obi/typedef.svh"
     `include "obi/assign.svh"
@@ -41,7 +79,9 @@ module tb_obi_slink;
 
     `OBI_TYPEDEF_DEFAULT_ALL(obi, ObiCfg)
 
-    typedef logic [NumLanes*(1+EnDdr)-1:0]  phy_data_t;
+    typedef logic [ObiIdWidth-1:0]    obi_id_t;
+    typedef logic [RegAddrWidth-1:0]  cfg_addr_t;
+    typedef logic [RegDataWidth-1:0]  cfg_data_t;
 
     // Model signals
     logic [NumChannels-1:0]  ddr_rcv_clk_1, ddr_rcv_clk_2;
@@ -50,6 +90,8 @@ module tb_obi_slink;
     obi_rsp_t   obi_out_rsp_1, obi_out_rsp_2;
     obi_req_t   obi_in_req_1,  obi_in_req_2;
     obi_rsp_t   obi_in_rsp_1,  obi_in_rsp_2;
+    obi_req_t   obi_reg_req_1,  obi_reg_req_2;
+    obi_rsp_t   obi_reg_rsp_1,  obi_reg_rsp_2;
 
     // link
     wire [NumChannels*NumLanes-1:0] ddr_o;
@@ -102,6 +144,8 @@ module tb_obi_slink;
         .obi_in_rsp_o  ( obi_in_rsp_1    ),
         .obi_out_req_o ( obi_out_req_1   ),
         .obi_out_rsp_i ( obi_out_rsp_1   ),
+        .obi_reg_req_i ( obi_reg_req_1   ),
+        .obi_reg_rsp_o ( obi_reg_rsp_1   ),
         .ddr_rcv_clk_i ( ddr_rcv_clk_2   ),
         .ddr_rcv_clk_o ( ddr_rcv_clk_1   ),
         .ddr_i         ( ddr_i           ),
@@ -126,6 +170,8 @@ module tb_obi_slink;
         .obi_in_rsp_o  ( obi_in_rsp_2    ),
         .obi_out_req_o ( obi_out_req_2   ),
         .obi_out_rsp_i ( obi_out_rsp_2   ),
+        .obi_reg_req_i ( obi_reg_req_2   ),
+        .obi_reg_rsp_o ( obi_reg_rsp_2   ),
         .ddr_rcv_clk_i ( ddr_rcv_clk_1   ),
         .ddr_rcv_clk_o ( ddr_rcv_clk_2   ),
         .ddr_i         ( ddr_o           ),
@@ -138,88 +184,99 @@ module tb_obi_slink;
         .obi_a_optional_t ( obi_a_optional_t ),
         .obi_r_optional_t ( obi_r_optional_t )
     ) obi_in_1  (clk_1, rst_1_n),
-      obi_out_1 (clk_1, rst_1_n);
+      obi_out_1 (clk_1, rst_1_n),
+      obi_reg_1 (clk_reg, rst_1_n);
 
     OBI_BUS_DV #(
         .OBI_CFG        ( ObiCfg          ),
         .obi_a_optional_t ( obi_a_optional_t ),
         .obi_r_optional_t ( obi_r_optional_t )
     ) obi_in_2  (clk_2, rst_2_n),
-      obi_out_2 (clk_2, rst_2_n);
+      obi_out_2 (clk_2, rst_2_n),
+      obi_reg_2 (clk_reg, rst_2_n);
 
 
     assign obi_out_1.err = 1'b0;
     assign obi_out_2.err = 1'b0;
 
-    // Connect struct-level OBI signals to DV interfaces (manager side)
-    // SoC manager drives `obi_in_*` interfaces, which are converted into
-    // struct-level requests for the `slink` subordinate.
-    // A channel: interface -> struct
-    assign obi_in_req_1.a.addr       = obi_in_1.addr;
-    assign obi_in_req_1.a.we         = obi_in_1.we;
-    assign obi_in_req_1.a.be         = obi_in_1.be;
-    assign obi_in_req_1.a.wdata      = obi_in_1.wdata;
-    assign obi_in_req_1.a.aid        = obi_in_1.aid;
-    assign obi_in_req_1.a.a_optional = obi_in_1.a_optional;
-    assign obi_in_req_1.req          = obi_in_1.req;
+    `OBI_CONNECT_MANAGER(obi_in_1, obi_in_req_1, obi_in_rsp_1);
+    `OBI_CONNECT_MANAGER(obi_in_2, obi_in_req_2, obi_in_rsp_2);
 
-    assign obi_in_req_2.a.addr       = obi_in_2.addr;
-    assign obi_in_req_2.a.we         = obi_in_2.we;
-    assign obi_in_req_2.a.be         = obi_in_2.be;
-    assign obi_in_req_2.a.wdata      = obi_in_2.wdata;
-    assign obi_in_req_2.a.aid        = obi_in_2.aid;
-    assign obi_in_req_2.a.a_optional = obi_in_2.a_optional;
-    assign obi_in_req_2.req          = obi_in_2.req;
+    `OBI_CONNECT_SUBORDINATE(obi_out_1, obi_out_req_1, obi_out_rsp_1);
+    `OBI_CONNECT_SUBORDINATE(obi_out_2, obi_out_req_2, obi_out_rsp_2);
 
-    // R channel and grant: struct -> interface
-    assign obi_in_1.gnt        = obi_in_rsp_1.gnt;
-    assign obi_in_1.rvalid     = obi_in_rsp_1.rvalid;
-    assign obi_in_1.rdata      = obi_in_rsp_1.r.rdata;
-    assign obi_in_1.rid        = obi_in_rsp_1.r.rid;
-    assign obi_in_1.err        = obi_in_rsp_1.r.err;
-    assign obi_in_1.r_optional = obi_in_rsp_1.r.r_optional;
+    `OBI_CONNECT_MANAGER(obi_reg_1, obi_reg_req_1, obi_reg_rsp_1);
+    `OBI_CONNECT_MANAGER(obi_reg_2, obi_reg_req_2, obi_reg_rsp_2);
 
-    assign obi_in_2.gnt        = obi_in_rsp_2.gnt;
-    assign obi_in_2.rvalid     = obi_in_rsp_2.rvalid;
-    assign obi_in_2.rdata      = obi_in_rsp_2.r.rdata;
-    assign obi_in_2.rid        = obi_in_rsp_2.r.rid;
-    assign obi_in_2.err        = obi_in_rsp_2.r.err;
-    assign obi_in_2.r_optional = obi_in_rsp_2.r.r_optional;
+    // // Connect struct-level OBI signals to DV interfaces (manager side)
+    // // SoC manager drives `obi_in_*` interfaces, which are converted into
+    // // struct-level requests for the `slink` subordinate.
+    // // A channel: interface -> struct
+    // assign obi_in_req_1.a.addr       = obi_in_1.addr;
+    // assign obi_in_req_1.a.we         = obi_in_1.we;
+    // assign obi_in_req_1.a.be         = obi_in_1.be;
+    // assign obi_in_req_1.a.wdata      = obi_in_1.wdata;
+    // assign obi_in_req_1.a.aid        = obi_in_1.aid;
+    // assign obi_in_req_1.a.a_optional = obi_in_1.a_optional;
+    // assign obi_in_req_1.req          = obi_in_1.req;
 
-    // Connect struct-level OBI signals to DV interfaces (subordinate side)
-    // `slink` acts as OBI manager on the `obi_out_*` side, DV environment
-    // provides random subordinate behavior.
-    // A channel: struct -> interface
-    assign obi_out_1.addr       = obi_out_req_1.a.addr;
-    assign obi_out_1.we         = obi_out_req_1.a.we;
-    assign obi_out_1.be         = obi_out_req_1.a.be;
-    assign obi_out_1.wdata      = obi_out_req_1.a.wdata;
-    assign obi_out_1.aid        = obi_out_req_1.a.aid;
-    assign obi_out_1.a_optional = obi_out_req_1.a.a_optional;
-    assign obi_out_1.req        = obi_out_req_1.req;
+    // assign obi_in_req_2.a.addr       = obi_in_2.addr;
+    // assign obi_in_req_2.a.we         = obi_in_2.we;
+    // assign obi_in_req_2.a.be         = obi_in_2.be;
+    // assign obi_in_req_2.a.wdata      = obi_in_2.wdata;
+    // assign obi_in_req_2.a.aid        = obi_in_2.aid;
+    // assign obi_in_req_2.a.a_optional = obi_in_2.a_optional;
+    // assign obi_in_req_2.req          = obi_in_2.req;
 
-    assign obi_out_2.addr       = obi_out_req_2.a.addr;
-    assign obi_out_2.we         = obi_out_req_2.a.we;
-    assign obi_out_2.be         = obi_out_req_2.a.be;
-    assign obi_out_2.wdata      = obi_out_req_2.a.wdata;
-    assign obi_out_2.aid        = obi_out_req_2.a.aid;
-    assign obi_out_2.a_optional = obi_out_req_2.a.a_optional;
-    assign obi_out_2.req        = obi_out_req_2.req;
+    // // R channel and grant: struct -> interface
+    // assign obi_in_1.gnt        = obi_in_rsp_1.gnt;
+    // assign obi_in_1.rvalid     = obi_in_rsp_1.rvalid;
+    // assign obi_in_1.rdata      = obi_in_rsp_1.r.rdata;
+    // assign obi_in_1.rid        = obi_in_rsp_1.r.rid;
+    // assign obi_in_1.err        = obi_in_rsp_1.r.err;
+    // assign obi_in_1.r_optional = obi_in_rsp_1.r.r_optional;
 
-    // R channel and grant: interface -> struct
-    assign obi_out_rsp_1.gnt           = obi_out_1.gnt;
-    assign obi_out_rsp_1.rvalid        = obi_out_1.rvalid;
-    assign obi_out_rsp_1.r.rdata       = obi_out_1.rdata;
-    assign obi_out_rsp_1.r.rid         = obi_out_1.rid;
-    assign obi_out_rsp_1.r.err         = obi_out_1.err;
-    assign obi_out_rsp_1.r.r_optional  = obi_out_1.r_optional;
+    // assign obi_in_2.gnt        = obi_in_rsp_2.gnt;
+    // assign obi_in_2.rvalid     = obi_in_rsp_2.rvalid;
+    // assign obi_in_2.rdata      = obi_in_rsp_2.r.rdata;
+    // assign obi_in_2.rid        = obi_in_rsp_2.r.rid;
+    // assign obi_in_2.err        = obi_in_rsp_2.r.err;
+    // assign obi_in_2.r_optional = obi_in_rsp_2.r.r_optional;
 
-    assign obi_out_rsp_2.gnt           = obi_out_2.gnt;
-    assign obi_out_rsp_2.rvalid        = obi_out_2.rvalid;
-    assign obi_out_rsp_2.r.rdata       = obi_out_2.rdata;
-    assign obi_out_rsp_2.r.rid         = obi_out_2.rid;
-    assign obi_out_rsp_2.r.err         = obi_out_2.err;
-    assign obi_out_rsp_2.r.r_optional  = obi_out_2.r_optional;
+    // // Connect struct-level OBI signals to DV interfaces (subordinate side)
+    // // `slink` acts as OBI manager on the `obi_out_*` side, DV environment
+    // // provides random subordinate behavior.
+    // // A channel: struct -> interface
+    // assign obi_out_1.addr       = obi_out_req_1.a.addr;
+    // assign obi_out_1.we         = obi_out_req_1.a.we;
+    // assign obi_out_1.be         = obi_out_req_1.a.be;
+    // assign obi_out_1.wdata      = obi_out_req_1.a.wdata;
+    // assign obi_out_1.aid        = obi_out_req_1.a.aid;
+    // assign obi_out_1.a_optional = obi_out_req_1.a.a_optional;
+    // assign obi_out_1.req        = obi_out_req_1.req;
+
+    // assign obi_out_2.addr       = obi_out_req_2.a.addr;
+    // assign obi_out_2.we         = obi_out_req_2.a.we;
+    // assign obi_out_2.be         = obi_out_req_2.a.be;
+    // assign obi_out_2.wdata      = obi_out_req_2.a.wdata;
+    // assign obi_out_2.aid        = obi_out_req_2.a.aid;
+    // assign obi_out_2.a_optional = obi_out_req_2.a.a_optional;
+    // assign obi_out_2.req        = obi_out_req_2.req;
+
+    // // R channel and grant: interface -> struct
+    // assign obi_out_rsp_1.gnt           = obi_out_1.gnt;
+    // assign obi_out_rsp_1.rvalid        = obi_out_1.rvalid;
+    // assign obi_out_rsp_1.r.rdata       = obi_out_1.rdata;
+    // assign obi_out_rsp_1.r.rid         = obi_out_1.rid;
+    // assign obi_out_rsp_1.r.err         = obi_out_1.err;
+    // assign obi_out_rsp_1.r.r_optional  = obi_out_1.r_optional;
+
+    // assign obi_out_rsp_2.gnt           = obi_out_2.gnt;
+    // assign obi_out_rsp_2.rvalid        = obi_out_2.rvalid;
+    // assign obi_out_rsp_2.r.rdata       = obi_out_2.rdata;
+    // assign obi_out_rsp_2.r.rid         = obi_out_2.rid;
+    // assign obi_out_rsp_2.r.err         = obi_out_2.err;
+    // assign obi_out_rsp_2.r.r_optional  = obi_out_2.r_optional;
     
 
     // ==============
@@ -234,104 +291,19 @@ module tb_obi_slink;
         .TT               ( 500ps            )
     ) obi_driver_t;
 
-    // Local copy of the upstream random manager with safe data randomization for 32-bit data.
-    class obi_rand_manager_fixed;
-        typedef logic [ObiCfg.AddrWidth-1:0] addr_t;
-
-        string name;
-        obi_driver_t drv;
-        addr_t a_queue[$];
-
-        function new(
-            virtual OBI_BUS_DV #(
-                .OBI_CFG          ( ObiCfg           ),
-                .obi_a_optional_t ( obi_a_optional_t ),
-                .obi_r_optional_t ( obi_r_optional_t )
-            ) obi,
-            input string name
-        );
-            this.drv = new(obi);
-            this.name = name;
-        endfunction
-
-        function void reset();
-            drv.reset_manager();
-        endfunction
-
-        task automatic rand_wait(input int unsigned min, input int unsigned max);
-            int unsigned rand_success, cycles;
-            rand_success = std::randomize(cycles) with {
-                cycles >= min;
-                cycles <= max;
-            };
-            assert (rand_success) else $error("Failed to randomize wait cycles!");
-            repeat (cycles) @(posedge this.drv.obi.clk_i);
-        endtask
-
-        task automatic send_as(input int unsigned n_reqs);
-            automatic addr_t a_addr;
-            automatic logic a_we;
-            automatic logic [ObiCfg.DataWidth/8-1:0] a_be;
-            automatic logic [ObiCfg.DataWidth-1:0] a_wdata;
-            automatic logic [ObiCfg.IdWidth-1:0] a_aid;
-            automatic obi_a_optional_t a_optional;
-
-            repeat (n_reqs) begin
-                rand_wait(0, 100);
-
-                // Generate random address
-                a_addr = $urandom();
-                a_we = $urandom() % 2;
-                assert(std::randomize(a_be));
-                assert(std::randomize(a_wdata));
-                assert(std::randomize(a_aid));
-                assert(std::randomize(a_optional));
-
-                this.a_queue.push_back(a_addr);
-                this.drv.send_a(a_addr, a_we, a_be, a_wdata, a_aid, a_optional);
-            end
-        endtask
-
-        task automatic recv_rs(input int unsigned n_rsps);
-            automatic addr_t a_addr;
-            automatic logic [ObiCfg.DataWidth-1:0] r_rdata;
-            automatic logic [ObiCfg.IdWidth-1:0] r_rid;
-            automatic logic r_err;
-            automatic obi_r_optional_t r_optional;
-
-            repeat (n_rsps) begin
-                wait (a_queue.size() > 0);
-                a_addr = this.a_queue.pop_front();
-                rand_wait(0, 100);
-                drv.recv_r(r_rdata, r_rid, r_err, r_optional);
-            end
-        endtask
-
-        task automatic send_set_cfg(input addr_t cfg_addr, input logic[ObiCfg.DataWidth-1:0] cfg_data);
-            rand_wait(0, 20);
-            drv.send_a(cfg_addr, 1'b1, 4'b1111, cfg_data, 0, '0);
-        endtask
-
-        task automatic send_get_cfg(input addr_t cfg_addr);
-            rand_wait(0, 20);
-            drv.send_a(cfg_addr, 1'b0, 4'b1111, '0, 0, '0);
-        endtask
-
-        task automatic recv_cfg(output logic [ObiCfg.DataWidth-1:0] cfg_data);
-            automatic logic [ObiCfg.IdWidth-1:0] r_rid;
-            automatic logic r_err;
-            automatic obi_r_optional_t r_optional;
-            rand_wait(0, 20);
-            drv.recv_r(cfg_data, r_rid, r_err, r_optional);
-        endtask
-
-        task automatic run(int unsigned n_reqs);
-            fork
-                this.send_as(n_reqs);
-                this.recv_rs(n_reqs);
-            join
-        endtask
-    endclass
+    typedef obi_rand_manager_fixed #(
+        .ObiCfg           ( ObiCfg           ),
+        .obi_a_optional_t ( obi_a_optional_t ),
+        .obi_r_optional_t ( obi_r_optional_t ),
+        .TA               ( 100ps            ),
+        .TT               ( 500ps            ),
+        .MinAddr          ( 32'h1000_0000    ),
+        .MaxAddr          ( 32'hffff_ffff    ),
+        .AMinWaitCycles   ( 0                ),
+        .AMaxWaitCycles   ( 100              ),
+        .RMinWaitCycles   ( 0                ),
+        .RMaxWaitCycles   ( 100              )
+    ) obi_rand_manager_t;
 
     typedef obi_test::obi_rand_subordinate #(
         .ObiCfg         ( ObiCfg            ),
@@ -345,11 +317,16 @@ module tb_obi_slink;
         .RMaxWaitCycles ( 100               )
     ) obi_rand_subordinate_t;
 
-    static obi_rand_manager_fixed obi_rand_manager_1 = new ( obi_in_1,  "obi_mst_1" );
-    static obi_rand_manager_fixed obi_rand_manager_2 = new ( obi_in_2,  "obi_mst_2" );
+    static obi_rand_manager_t obi_rand_manager_1 = new ( obi_in_1,  "obi_mst_1" );
+    static obi_rand_manager_t obi_rand_manager_2 = new ( obi_in_2,  "obi_mst_2" );
 
     static obi_rand_subordinate_t obi_rand_subordinate_1 = new ( obi_out_1, "obi_slv_1" );
     static obi_rand_subordinate_t obi_rand_subordinate_2 = new ( obi_out_2, "obi_slv_2" );
+
+    static obi_driver_t obi_reg_drv_1 = new ( obi_reg_1 );
+    static obi_driver_t obi_reg_drv_2 = new ( obi_reg_2 );
+
+
 
     logic [1:0] mst_done;
     logic [1:0] cfg_done;
@@ -358,9 +335,22 @@ module tb_obi_slink;
     int NumReqs_1 = TestDuration;
     int NumReqs_2 = TestDuration;
 
-    initial begin
-        wait (mst_done[0] == 1);
-        wait (mst_done[1] == 1);
+    initial begin : stimuli_process
+        obi_reg_drv_1.reset_manager();
+        obi_reg_drv_2.reset_manager();
+        fork
+            wait_for_reset_1();
+            wait_for_reset_2();
+        join
+        $display("[SYS] Reset complete");
+        fork
+            start_link(obi_reg_drv_1, 1);
+            start_link(obi_reg_drv_2, 2);
+        join
+        $display("[SYS] Links are ready");
+        while (mst_done != '1) begin
+            @(posedge clk_1);
+        end
         stop_sim();
     end
 
@@ -382,8 +372,9 @@ module tb_obi_slink;
         automatic time start_cycle, end_cycle;
         automatic int unsigned data_sent = 0;
         automatic int unsigned data_received = 0;
-        wait (cfg_done[0] == 1);
         mst_done[0] = 0;
+        obi_rand_manager_1.reset();
+        wait_for_reset_1();
         start_cycle = $realtime;
         fork
             obi_rand_manager_1.run(NumReqs_1);
@@ -398,7 +389,7 @@ module tb_obi_slink;
             end
         join_any
         end_cycle = $realtime;
-        $info("OBI BW %0d/%0d (sent/rcv) Mbit/s @ %0d/%0d MHz (SoC/PHY)",
+        $display("OBI BW %0d/%0d (sent/rcv) Mbit/s @ %0d/%0d MHz (SoC/PHY)",
             data_sent * 1000 / (end_cycle - start_cycle),
             data_received * 1000 / (end_cycle - start_cycle),
             1000 / TckSys1,
@@ -408,45 +399,16 @@ module tb_obi_slink;
 
     // Manager on side 2
     initial begin
-        wait (cfg_done[1] == 1);
         mst_done[1] = 0;
+        obi_rand_manager_2.reset();
+        wait_for_reset_2();
         obi_rand_manager_2.run(NumReqs_2);
         mst_done[1] = 1;
     end
 
-    // Initial configuration on side 1
-    initial begin
-        automatic logic [31:0] cfg_data;
-        cfg_done[0] = 0;
-        obi_rand_manager_1.reset();
-        wait_for_reset_1();
-        obi_rand_manager_1.send_set_cfg(`SLINK_REG_CTRL_REG_ADDR, 32'h0000ffff);
-        obi_rand_manager_1.recv_cfg(cfg_data);
-        obi_rand_manager_1.send_get_cfg(`SLINK_REG_CTRL_REG_ADDR);
-        obi_rand_manager_1.recv_cfg(cfg_data);
-        $display("CFG_DATA: %0d", cfg_data);
-        assert(cfg_data == 32'h0000ffff) else $error("CFG_DATA is not correct");
-        cfg_done[0] = 1;
-    end
-
-    // Initial configuration on side 2
-    initial begin
-        automatic logic [31:0] cfg_data;
-        cfg_done[1] = 0;
-        obi_rand_manager_2.reset();
-        wait_for_reset_2();
-        obi_rand_manager_2.send_set_cfg(`SLINK_REG_CTRL_REG_ADDR, 32'h0000aaaa);
-        obi_rand_manager_2.recv_cfg(cfg_data);
-        obi_rand_manager_2.send_get_cfg(`SLINK_REG_CTRL_REG_ADDR);
-        obi_rand_manager_2.recv_cfg(cfg_data);
-        $display("CFG_DATA: %0d", cfg_data);
-        assert(cfg_data == 32'h0000aaaa) else $error("CFG_DATA is not correct");
-        cfg_done[1] = 1;
-    end
-
-  // ==============
-  //    Tasks
-  // ==============
+    // ==============
+    //    Tasks
+    // ==============
 
     task automatic wait_for_reset_1();
         @(posedge rst_1_n);
@@ -455,6 +417,42 @@ module tb_obi_slink;
     task automatic wait_for_reset_2();
         @(posedge rst_2_n);
     endtask
+
+    task automatic cfg_write(obi_driver_t drv, cfg_addr_t addr, cfg_data_t data);
+        cfg_data_t rdata;
+        obi_id_t rid;
+        logic err;
+        obi_r_optional_t r_optional;
+        drv.send_a(addr, 1'b1, 4'b1111, data, 0, '0);
+        drv.recv_r(rdata, rid, err, r_optional);
+        assert (!err) else $error("Not able to write cfg reg");
+    endtask
+
+    task automatic cfg_read(obi_driver_t drv, cfg_addr_t addr, output cfg_data_t data);
+        obi_id_t rid;
+        logic err;
+        obi_r_optional_t r_optional;
+        drv.send_a(addr, 1'b0, 4'b1111, '0, 0, '0);
+        drv.recv_r(data, rid, err, r_optional);
+        assert (!err) else $error("Not able to read cfg reg");
+    endtask
+
+    task automatic start_link(obi_driver_t drv, int id);
+        automatic cfg_data_t data;
+        $display("[DDR%0d]: Enabling clock and deassert link reset.", id);
+        cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h303);
+        cfg_write(drv, `SLINK_REG_TX_PHY_CLK_DIV_0_REG_ADDR, 32'h8);
+        // Wait for some clock cycles
+        repeat(10) drv.cycle_end();
+        // De-isolate AXI ports
+        $display("[DDR%0d] Reading registers...",id);
+        cfg_read(drv, `SLINK_REG_CTRL_REG_OFFSET, data);
+        $display("[DDR%0d] @0x%08X: 0x%08X",id, `SLINK_REG_CTRL_REG_OFFSET, data);
+        $display("[DDR%0d] Reading registers...",id);
+        cfg_read(drv, `SLINK_REG_TX_PHY_CLK_DIV_0_REG_ADDR, data);
+        $display("[DDR%0d] @0x%08X: 0x%08X",id, `SLINK_REG_TX_PHY_CLK_DIV_0_REG_ADDR, data);
+        $display("[DDR%0d] Link is ready", id);
+    endtask;
 
     task automatic stop_sim();
         repeat(50) begin

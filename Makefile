@@ -51,7 +51,7 @@ VSIM_FLAGS_GUI += -do util/wave.tcl
 
 .PHONY: vsim-compile vsim-clean vsim-run vsim-run-batch
 
-scripts/compile_vsim.tcl: Bender.lock
+scripts/compile_vsim.tcl: Bender.yml Bender.lock
 	@mkdir -p scripts
 	$(BENDER) script vsim --vlog-arg="$(VLOG_FLAGS)" $(BENDER_FLAGS) >> $@
 
