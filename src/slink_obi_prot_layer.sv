@@ -34,9 +34,8 @@ module slink_prot_layer #(
   output axis_req_t axis_out_req_o,
   input  axis_rsp_t axis_out_rsp_i,
   input  axis_req_t axis_in_req_i,
-  output axis_rsp_t axis_in_rsp_o,
-  output logic      a_channel_pend
-);
+  output axis_rsp_t axis_in_rsp_o
+  );
 
 
   typedef enum logic [1:0] {
@@ -65,14 +64,12 @@ module slink_prot_layer #(
   always_comb begin : commiter
     gnt_a  = 1'b0;
     gnt_r = 1'b0;
-    a_channel_pend = 1'b0;
     commiter_state_d = commiter_state_q;
     
     unique case(commiter_state_q)
       Idle: begin
         if (obi_in_req_i.req) begin
           gnt_a = (obi_out_req_o.req) ? entropy_q : 1'b1;
-          a_channel_pend = 1'b1;
         end
         if(obi_out_req_o.req) begin
           gnt_r = (obi_in_req_i.req) ? ~entropy_q : 1'b1;
@@ -85,7 +82,6 @@ module slink_prot_layer #(
         end
       end
       APend: begin 
-        a_channel_pend = 1'b1;
         if(obi_out_req_o.req) begin 
           gnt_r = 1'b1;
         end
@@ -98,7 +94,6 @@ module slink_prot_layer #(
       RPend: begin 
         if(obi_in_req_i.req) begin 
           gnt_a = 1'b1;
-          a_channel_pend = 1'b1;
         end
         if(obi_out_rsp_i.rvalid)begin 
           commiter_state_d = (gnt_a & obi_in_rsp_o.gnt) ? APend : Idle;
@@ -107,7 +102,6 @@ module slink_prot_layer #(
         end
       end
       ARPend: begin
-          a_channel_pend = 1'b1;
           if(obi_in_rsp_o.rvalid)begin
             commiter_state_d = RPend;
           end 

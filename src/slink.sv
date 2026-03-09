@@ -40,6 +40,8 @@ module slink
   output obi_rsp_t                  obi_in_rsp_o,
   output obi_req_t                  obi_out_req_o,
   input  obi_rsp_t                  obi_out_rsp_i,
+  input  obi_req_t                  obi_reg_i,
+  output obi_rsp_t                  obi_reg_o,
   input  logic [NumChannels-1:0]    ddr_rcv_clk_i,
   output logic [NumChannels-1:0]    ddr_rcv_clk_o,
   input  logic [NumChannels-1:0][NumLanes-1:0] ddr_i,
@@ -91,15 +93,7 @@ module slink
 
   `AXI_STREAM_TYPEDEF_ALL(axis, tdata_t, tstrb_t, tkeep_t, tid_t, tdest_t, tuser_t)
 
-  obi_req_t  obi_req_reg;
-  obi_rsp_t  obi_rsp_reg;
-  obi_req_t  obi_req_stream;
-  obi_rsp_t  obi_rsp_stream;
-
-  logic [3:0]   obi_byte_enable; 
-  logic [0:0]   obi_rid;
-  logic [0:0]   obi_aid;
-  logic         obi_err, obi_rready;
+  logic      obi_rready;
 
   axis_req_t  axis_out_req, axis_in_req;
   axis_rsp_t  axis_out_rsp, axis_in_rsp;
@@ -123,33 +117,6 @@ module slink
   logic [NumChannels-1:0]       phy2alloc_data_in_valid;
   logic [NumChannels-1:0]       alloc2phy_data_in_ready;
 
-  logic sel_subordinate_d, sel_subordinate_q;
-  logic allow_sel_d, allow_sel_q;
-  logic a_channel_pend;
-
-  always_comb begin
-    obi_req_reg = '0;
-    obi_req_stream = '0;
-    obi_in_rsp_o = '0;
-    sel_subordinate_d = sel_subordinate_q;
-    if(allow_sel_q && obi_in_req_i.req)begin
-      if(((obi_in_req_i.a.addr[ObiAddrWidth-1:ObiAddrWidth-CfgRegSelBitSize] == slink_pkg::CFG_REG_SEL)) != sel_subordinate_q)begin
-        sel_subordinate_d = ~sel_subordinate_q;
-      end
-    end
-    if(sel_subordinate_q)begin 
-      obi_req_reg = obi_in_req_i;
-      obi_in_rsp_o = obi_rsp_reg;
-    end else begin 
-      obi_req_stream = obi_in_req_i;
-      obi_in_rsp_o = obi_rsp_stream;
-    end
-  end
-
-  assign allow_sel_d = (obi_rsp_reg.rvalid && sel_subordinate_q) || (~a_channel_pend && ~sel_subordinate_q);
-
-  `FF(sel_subordinate_q, sel_subordinate_d, 0)
-  `FF(allow_sel_q, allow_sel_d, 0)
 
   ////////////////////////
   //   PROTOCOL LAYER   //
@@ -168,15 +135,14 @@ module slink
   ) i_serial_link_protocol (
     .clk_i          ( clk_sl_i        ),
     .rst_ni         ( rst_sl_ni       ),
-    .obi_in_req_i   ( obi_req_stream  ),
-    .obi_in_rsp_o   ( obi_rsp_stream  ),
+    .obi_in_req_i   ( obi_in_req_i    ),
+    .obi_in_rsp_o   ( obi_in_rsp_o    ),
     .obi_out_req_o  ( obi_out_req_o   ),
     .obi_out_rsp_i  ( obi_out_rsp_i   ),
     .axis_in_req_i  ( axis_in_req     ),
     .axis_in_rsp_o  ( axis_in_rsp     ),
     .axis_out_req_o ( axis_out_req    ),
-    .axis_out_rsp_i ( axis_out_rsp    ),
-    .a_channel_pend ( a_channel_pend  )
+    .axis_out_rsp_i ( axis_out_rsp    )
   );
 
   /////////////////////////
@@ -387,25 +353,24 @@ module slink
     .clk  (clk_i),
     .arst_n (rst_ni),
 
-    .s_obi_req    ( obi_req_reg.req     ),
-    .s_obi_gnt    ( obi_rsp_reg.gnt     ),
-    .s_obi_addr   ( obi_req_reg.a.addr[11:0]  ),
-    .s_obi_we     ( obi_req_reg.a.we    ),
-    .s_obi_be     ( obi_byte_enable     ),
-    .s_obi_wdata  ( obi_req_reg.a.wdata ),
-    .s_obi_aid    ( obi_aid             ),
-    .s_obi_rvalid ( obi_rsp_reg.rvalid  ),
-    .s_obi_rready ( obi_rready          ),
-    .s_obi_rdata  ( obi_rsp_reg.r.rdata ),
-    .s_obi_err    ( obi_err             ),
-    .s_obi_rid    ( obi_rid             ),
-    .hwif_in      ( hw2reg              ),
-    .hwif_out     ( reg2hw              )
+    .s_obi_req    ( obi_reg_i.req     ),
+    .s_obi_gnt    ( obi_reg_o.gnt     ),
+    .s_obi_addr   ( obi_reg_i.a.addr  ),
+    .s_obi_we     ( obi_reg_i.a.we    ),
+    .s_obi_be     ( obi_reg_i.a.be    ),
+    .s_obi_wdata  ( obi_reg_i.a.wdata ),
+    .s_obi_aid    ( obi_reg_i.a.aid   ),
+    .s_obi_rvalid ( obi_reg_o.rvalid  ),
+    .s_obi_rready ( obi_rready        ),
+    .s_obi_rdata  ( obi_reg_o.r.rdata ),
+    .s_obi_err    ( obi_reg_o.r.err   ),
+    .s_obi_rid    ( obi_reg_o.r.rid   ),
+    .hwif_in      ( hw2reg            ),
+    .hwif_out     ( reg2hw            )
   );
-  
-  assign obi_byte_enable = 4'b1111;
-  assign obi_aid = 1'b0;
 
+//TODO remove the rready in hte cfg regs and then remove this
+assign obi_rready = 1'b1;
 
   if (EnChAlloc) begin : gen_channel_alloc_regs
     `SLINK_ASSIGN_RDL_WR_ACK(channel_alloc_tx_ctrl)
