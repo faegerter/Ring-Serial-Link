@@ -48,8 +48,6 @@ module slink
   output logic [NumChannels-1:0][NumLanes-1:0] ddr_o
 );
 
-  //TODO ask if this is the way it should be implemented
-  localparam int unsigned CfgRegSelBitSize = 4;
 
   localparam int unsigned NumBitsPerCycle = NumLanes * (1 + EnDdr);
   localparam int unsigned RawModeFifoDepth = 2**Log2RawModeTXFifoDepth;
