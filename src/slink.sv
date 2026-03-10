@@ -33,8 +33,6 @@ module slink
     input  logic                      rst_ni,
     input  logic                      clk_sl_i,
     input  logic                      rst_sl_ni,
-    input  logic                      clk_reg_i,
-    input  logic                      rst_reg_ni,
     input  logic                      testmode_i,
     input  obi_req_t                  obi_in_req_i,
     output obi_rsp_t                  obi_in_rsp_o,
@@ -347,7 +345,7 @@ module slink
 
         .s_obi_req    ( obi_reg_req_i.req      ),
         .s_obi_gnt    ( obi_reg_rsp_o.gnt      ),
-        .s_obi_addr   ( obi_reg_req_i.a.addr   ),
+        .s_obi_addr   ( obi_reg_req_i.a.addr[slink_reg_pkg::SLINK_REG_MIN_ADDR_WIDTH-1:0]   ),
         .s_obi_we     ( obi_reg_req_i.a.we     ),
         .s_obi_be     ( obi_reg_req_i.a.be     ),
         .s_obi_wdata  ( obi_reg_req_i.a.wdata  ),

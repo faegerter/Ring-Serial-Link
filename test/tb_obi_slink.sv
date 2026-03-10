@@ -54,12 +54,11 @@ module tb_obi_slink;
     // ==============
     //    Config
     // ==============
-    localparam int unsigned TestDuration    = 1;
+    localparam int unsigned TestDuration    = 2;
     localparam int unsigned MaxClkDiv       = 2**Log2MaxClkDiv;
 
     localparam time         TckSys1         = 50ns;
     localparam time         TckSys2         = 54ns;
-    localparam time         TckReg          = 200ns;
     localparam int unsigned RstClkCyclesSys = 1;
 
     localparam int unsigned ObiIdWidth      = 1;
@@ -98,18 +97,10 @@ module tb_obi_slink;
     wire [NumChannels*NumLanes-1:0] ddr_i;
 
     // clock and reset
-    logic clk_1, clk_2, clk_reg;
-    logic rst_1_n, rst_2_n, rst_reg_n;
+    logic clk_1, clk_2;
+    logic rst_1_n, rst_2_n;
 
     // system clock and reset
-    clk_rst_gen #(
-        .ClkPeriod    ( TckReg          ),
-        .RstClkCycles ( RstClkCyclesSys )
-    ) i_clk_rst_gen_reg (
-        .clk_o  ( clk_reg   ),
-        .rst_no ( rst_reg_n )
-    );
-
     clk_rst_gen #(
         .ClkPeriod    ( TckSys1         ),
         .RstClkCycles ( RstClkCyclesSys )
@@ -137,8 +128,6 @@ module tb_obi_slink;
         .rst_ni        ( rst_1_n         ),
         .clk_sl_i      ( clk_1           ),
         .rst_sl_ni     ( rst_1_n         ),
-        .clk_reg_i     ( clk_reg         ),
-        .rst_reg_ni    ( rst_reg_n       ),
         .testmode_i    ( 1'b0            ),
         .obi_in_req_i  ( obi_in_req_1    ),
         .obi_in_rsp_o  ( obi_in_rsp_1    ),
@@ -163,8 +152,6 @@ module tb_obi_slink;
         .rst_ni        ( rst_2_n         ),
         .clk_sl_i      ( clk_2           ),
         .rst_sl_ni     ( rst_2_n         ),
-        .clk_reg_i     ( clk_reg         ),
-        .rst_reg_ni    ( rst_reg_n       ),
         .testmode_i    ( 1'b0            ),
         .obi_in_req_i  ( obi_in_req_2    ),
         .obi_in_rsp_o  ( obi_in_rsp_2    ),
@@ -185,7 +172,7 @@ module tb_obi_slink;
         .obi_r_optional_t ( obi_r_optional_t )
     ) obi_in_1  (clk_1, rst_1_n),
       obi_out_1 (clk_1, rst_1_n),
-      obi_reg_1 (clk_reg, rst_1_n);
+      obi_reg_1 (clk_1, rst_1_n);
 
     OBI_BUS_DV #(
         .OBI_CFG        ( ObiCfg          ),
@@ -193,7 +180,7 @@ module tb_obi_slink;
         .obi_r_optional_t ( obi_r_optional_t )
     ) obi_in_2  (clk_2, rst_2_n),
       obi_out_2 (clk_2, rst_2_n),
-      obi_reg_2 (clk_reg, rst_2_n);
+      obi_reg_2 (clk_2, rst_2_n);
 
 
     assign obi_out_1.err = 1'b0;
@@ -207,76 +194,6 @@ module tb_obi_slink;
 
     `OBI_CONNECT_MANAGER(obi_reg_1, obi_reg_req_1, obi_reg_rsp_1);
     `OBI_CONNECT_MANAGER(obi_reg_2, obi_reg_req_2, obi_reg_rsp_2);
-
-    // // Connect struct-level OBI signals to DV interfaces (manager side)
-    // // SoC manager drives `obi_in_*` interfaces, which are converted into
-    // // struct-level requests for the `slink` subordinate.
-    // // A channel: interface -> struct
-    // assign obi_in_req_1.a.addr       = obi_in_1.addr;
-    // assign obi_in_req_1.a.we         = obi_in_1.we;
-    // assign obi_in_req_1.a.be         = obi_in_1.be;
-    // assign obi_in_req_1.a.wdata      = obi_in_1.wdata;
-    // assign obi_in_req_1.a.aid        = obi_in_1.aid;
-    // assign obi_in_req_1.a.a_optional = obi_in_1.a_optional;
-    // assign obi_in_req_1.req          = obi_in_1.req;
-
-    // assign obi_in_req_2.a.addr       = obi_in_2.addr;
-    // assign obi_in_req_2.a.we         = obi_in_2.we;
-    // assign obi_in_req_2.a.be         = obi_in_2.be;
-    // assign obi_in_req_2.a.wdata      = obi_in_2.wdata;
-    // assign obi_in_req_2.a.aid        = obi_in_2.aid;
-    // assign obi_in_req_2.a.a_optional = obi_in_2.a_optional;
-    // assign obi_in_req_2.req          = obi_in_2.req;
-
-    // // R channel and grant: struct -> interface
-    // assign obi_in_1.gnt        = obi_in_rsp_1.gnt;
-    // assign obi_in_1.rvalid     = obi_in_rsp_1.rvalid;
-    // assign obi_in_1.rdata      = obi_in_rsp_1.r.rdata;
-    // assign obi_in_1.rid        = obi_in_rsp_1.r.rid;
-    // assign obi_in_1.err        = obi_in_rsp_1.r.err;
-    // assign obi_in_1.r_optional = obi_in_rsp_1.r.r_optional;
-
-    // assign obi_in_2.gnt        = obi_in_rsp_2.gnt;
-    // assign obi_in_2.rvalid     = obi_in_rsp_2.rvalid;
-    // assign obi_in_2.rdata      = obi_in_rsp_2.r.rdata;
-    // assign obi_in_2.rid        = obi_in_rsp_2.r.rid;
-    // assign obi_in_2.err        = obi_in_rsp_2.r.err;
-    // assign obi_in_2.r_optional = obi_in_rsp_2.r.r_optional;
-
-    // // Connect struct-level OBI signals to DV interfaces (subordinate side)
-    // // `slink` acts as OBI manager on the `obi_out_*` side, DV environment
-    // // provides random subordinate behavior.
-    // // A channel: struct -> interface
-    // assign obi_out_1.addr       = obi_out_req_1.a.addr;
-    // assign obi_out_1.we         = obi_out_req_1.a.we;
-    // assign obi_out_1.be         = obi_out_req_1.a.be;
-    // assign obi_out_1.wdata      = obi_out_req_1.a.wdata;
-    // assign obi_out_1.aid        = obi_out_req_1.a.aid;
-    // assign obi_out_1.a_optional = obi_out_req_1.a.a_optional;
-    // assign obi_out_1.req        = obi_out_req_1.req;
-
-    // assign obi_out_2.addr       = obi_out_req_2.a.addr;
-    // assign obi_out_2.we         = obi_out_req_2.a.we;
-    // assign obi_out_2.be         = obi_out_req_2.a.be;
-    // assign obi_out_2.wdata      = obi_out_req_2.a.wdata;
-    // assign obi_out_2.aid        = obi_out_req_2.a.aid;
-    // assign obi_out_2.a_optional = obi_out_req_2.a.a_optional;
-    // assign obi_out_2.req        = obi_out_req_2.req;
-
-    // // R channel and grant: interface -> struct
-    // assign obi_out_rsp_1.gnt           = obi_out_1.gnt;
-    // assign obi_out_rsp_1.rvalid        = obi_out_1.rvalid;
-    // assign obi_out_rsp_1.r.rdata       = obi_out_1.rdata;
-    // assign obi_out_rsp_1.r.rid         = obi_out_1.rid;
-    // assign obi_out_rsp_1.r.err         = obi_out_1.err;
-    // assign obi_out_rsp_1.r.r_optional  = obi_out_1.r_optional;
-
-    // assign obi_out_rsp_2.gnt           = obi_out_2.gnt;
-    // assign obi_out_rsp_2.rvalid        = obi_out_2.rvalid;
-    // assign obi_out_rsp_2.r.rdata       = obi_out_2.rdata;
-    // assign obi_out_rsp_2.r.rid         = obi_out_2.rid;
-    // assign obi_out_rsp_2.r.err         = obi_out_2.err;
-    // assign obi_out_rsp_2.r.r_optional  = obi_out_2.r_optional;
     
 
     // ==============
@@ -439,16 +356,14 @@ module tb_obi_slink;
 
     task automatic start_link(obi_driver_t drv, int id);
         automatic cfg_data_t data;
-        $display("[DDR%0d]: Enabling clock and deassert link reset.", id);
+        $display("[DDR%0d]: Writing registers...", id);
         cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h303);
         cfg_write(drv, `SLINK_REG_TX_PHY_CLK_DIV_0_REG_ADDR, 32'h8);
         // Wait for some clock cycles
         repeat(10) drv.cycle_end();
-        // De-isolate AXI ports
         $display("[DDR%0d] Reading registers...",id);
         cfg_read(drv, `SLINK_REG_CTRL_REG_OFFSET, data);
         $display("[DDR%0d] @0x%08X: 0x%08X",id, `SLINK_REG_CTRL_REG_OFFSET, data);
-        $display("[DDR%0d] Reading registers...",id);
         cfg_read(drv, `SLINK_REG_TX_PHY_CLK_DIV_0_REG_ADDR, data);
         $display("[DDR%0d] @0x%08X: 0x%08X",id, `SLINK_REG_TX_PHY_CLK_DIV_0_REG_ADDR, data);
         $display("[DDR%0d] Link is ready", id);
