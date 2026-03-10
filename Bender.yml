@@ -31,7 +31,7 @@ sources:
     - src/channel_allocator/slink_channel_despread_sfr.sv
     - src/channel_allocator/slink_channel_spread_sfr.sv
     - src/channel_allocator/slink_ch_alloc.sv
-    - src/slink_obi_prot_layer.sv
+    - src/slink_prot_layer.sv
     - src/slink_link_layer.sv
     - src/slink_phys_layer.sv
 

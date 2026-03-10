@@ -357,13 +357,12 @@ module tb_obi_slink;
     task automatic start_link(obi_driver_t drv, int id);
         automatic cfg_data_t data;
         $display("[DDR%0d]: Writing registers...", id);
-        cfg_write(drv, `SLINK_REG_CTRL_REG_OFFSET, 32'h303);
         cfg_write(drv, `SLINK_REG_TX_PHY_CLK_DIV_0_REG_ADDR, 32'h8);
         // Wait for some clock cycles
         repeat(10) drv.cycle_end();
         $display("[DDR%0d] Reading registers...",id);
-        cfg_read(drv, `SLINK_REG_CTRL_REG_OFFSET, data);
-        $display("[DDR%0d] @0x%08X: 0x%08X",id, `SLINK_REG_CTRL_REG_OFFSET, data);
+        cfg_read(drv, `SLINK_REG_TX_PHY_CLK_START_0_REG_ADDR, data);
+        $display("[DDR%0d] @0x%08X: 0x%08X",id, `SLINK_REG_TX_PHY_CLK_START_0_REG_ADDR, data);
         cfg_read(drv, `SLINK_REG_TX_PHY_CLK_DIV_0_REG_ADDR, data);
         $display("[DDR%0d] @0x%08X: 0x%08X",id, `SLINK_REG_TX_PHY_CLK_DIV_0_REG_ADDR, data);
         $display("[DDR%0d] Link is ready", id);

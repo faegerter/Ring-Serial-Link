@@ -146,7 +146,6 @@ module slink_reg #(
     // Address Decode
     //--------------------------------------------------------------------------
     typedef struct {
-        logic ctrl;
         logic raw_mode_en;
         logic raw_mode_in_data;
         logic raw_mode_in_ch_sel;
@@ -182,17 +181,16 @@ module slink_reg #(
         is_external = '0;
         is_valid_addr = '1; // No error checking on valid address access
         is_invalid_rw = '0;
-        decoded_reg_strb.ctrl = cpuif_req_masked & (cpuif_addr == 12'h0);
-        decoded_reg_strb.raw_mode_en = cpuif_req_masked & (cpuif_addr == 12'h8) & cpuif_req_is_wr;
-        decoded_reg_strb.raw_mode_in_data = cpuif_req_masked & (cpuif_addr == 12'hc) & !cpuif_req_is_wr;
-        is_external |= cpuif_req_masked & (cpuif_addr == 12'hc) & !cpuif_req_is_wr;
-        decoded_reg_strb.raw_mode_in_ch_sel = cpuif_req_masked & (cpuif_addr == 12'h10) & cpuif_req_is_wr;
-        decoded_reg_strb.raw_mode_out_data_fifo = cpuif_req_masked & (cpuif_addr == 12'h14) & cpuif_req_is_wr;
-        decoded_reg_strb.raw_mode_out_data_fifo_ctrl = cpuif_req_masked & (cpuif_addr == 12'h18);
-        is_external |= cpuif_req_masked & (cpuif_addr == 12'h18);
-        decoded_reg_strb.raw_mode_out_en = cpuif_req_masked & (cpuif_addr == 12'h1c);
-        decoded_reg_strb.flow_control_fifo_clear = cpuif_req_masked & (cpuif_addr == 12'h20) & cpuif_req_is_wr;
-        is_external |= cpuif_req_masked & (cpuif_addr == 12'h20) & cpuif_req_is_wr;
+        decoded_reg_strb.raw_mode_en = cpuif_req_masked & (cpuif_addr == 12'h0) & cpuif_req_is_wr;
+        decoded_reg_strb.raw_mode_in_data = cpuif_req_masked & (cpuif_addr == 12'h4) & !cpuif_req_is_wr;
+        is_external |= cpuif_req_masked & (cpuif_addr == 12'h4) & !cpuif_req_is_wr;
+        decoded_reg_strb.raw_mode_in_ch_sel = cpuif_req_masked & (cpuif_addr == 12'h8) & cpuif_req_is_wr;
+        decoded_reg_strb.raw_mode_out_data_fifo = cpuif_req_masked & (cpuif_addr == 12'hc) & cpuif_req_is_wr;
+        decoded_reg_strb.raw_mode_out_data_fifo_ctrl = cpuif_req_masked & (cpuif_addr == 12'h10);
+        is_external |= cpuif_req_masked & (cpuif_addr == 12'h10);
+        decoded_reg_strb.raw_mode_out_en = cpuif_req_masked & (cpuif_addr == 12'h14);
+        decoded_reg_strb.flow_control_fifo_clear = cpuif_req_masked & (cpuif_addr == 12'h18) & cpuif_req_is_wr;
+        is_external |= cpuif_req_masked & (cpuif_addr == 12'h18) & cpuif_req_is_wr;
         for(int i0=0; i0<1; i0++) begin
             decoded_reg_strb.raw_mode_in_data_valid[i0] = cpuif_req_masked & (cpuif_addr == 12'h100 + (12)'(i0) * 12'h4) & !cpuif_req_is_wr;
             is_external |= cpuif_req_masked & (cpuif_addr == 12'h100 + (12)'(i0) * 12'h4) & !cpuif_req_is_wr;
@@ -236,12 +234,6 @@ module slink_reg #(
     // Field logic
     //--------------------------------------------------------------------------
     typedef struct {
-        struct {
-            struct {
-                logic next;
-                logic load_next;
-            } reset_n;
-        } ctrl;
         struct {
             struct {
                 logic next;
@@ -297,11 +289,6 @@ module slink_reg #(
         struct {
             struct {
                 logic value;
-            } reset_n;
-        } ctrl;
-        struct {
-            struct {
-                logic value;
             } raw_mode_en;
         } raw_mode_en;
         struct {
@@ -342,29 +329,6 @@ module slink_reg #(
     } field_storage_t;
     field_storage_t field_storage;
 
-    // Field: slink_reg.ctrl.reset_n
-    always_comb begin
-        automatic logic [0:0] next_c;
-        automatic logic load_next_c;
-        next_c = field_storage.ctrl.reset_n.value;
-        load_next_c = '0;
-        if(decoded_reg_strb.ctrl && decoded_req_is_wr) begin // SW write
-            next_c = (field_storage.ctrl.reset_n.value & ~decoded_wr_biten[0:0]) | (decoded_wr_data[0:0] & decoded_wr_biten[0:0]);
-            load_next_c = '1;
-        end
-        field_combo.ctrl.reset_n.next = next_c;
-        field_combo.ctrl.reset_n.load_next = load_next_c;
-    end
-    always_ff @(posedge clk or negedge arst_n) begin
-        if(~arst_n) begin
-            field_storage.ctrl.reset_n.value <= 1'h0;
-        end else begin
-            if(field_combo.ctrl.reset_n.load_next) begin
-                field_storage.ctrl.reset_n.value <= field_combo.ctrl.reset_n.next;
-            end
-        end
-    end
-    assign hwif_out.ctrl.reset_n.value = field_storage.ctrl.reset_n.value;
     // Field: slink_reg.raw_mode_en.raw_mode_en
     always_comb begin
         automatic logic [0:0] next_c;
@@ -641,48 +605,46 @@ module slink_reg #(
     logic [31:0] readback_data;
 
     // Assign readback values to a flattened array
-    logic [31:0] readback_array[14];
-    assign readback_array[0][0:0] = (decoded_reg_strb.ctrl && !decoded_req_is_wr) ? field_storage.ctrl.reset_n.value : '0;
-    assign readback_array[0][31:1] = '0;
-    assign readback_array[1] = hwif_in.raw_mode_in_data.rd_ack ? hwif_in.raw_mode_in_data.rd_data : '0;
-    assign readback_array[2] = hwif_in.raw_mode_out_data_fifo_ctrl.rd_ack ? hwif_in.raw_mode_out_data_fifo_ctrl.rd_data : '0;
-    assign readback_array[3][0:0] = (decoded_reg_strb.raw_mode_out_en && !decoded_req_is_wr) ? field_storage.raw_mode_out_en.raw_mode_out_en.value : '0;
-    assign readback_array[3][31:1] = '0;
+    logic [31:0] readback_array[13];
+    assign readback_array[0] = hwif_in.raw_mode_in_data.rd_ack ? hwif_in.raw_mode_in_data.rd_data : '0;
+    assign readback_array[1] = hwif_in.raw_mode_out_data_fifo_ctrl.rd_ack ? hwif_in.raw_mode_out_data_fifo_ctrl.rd_data : '0;
+    assign readback_array[2][0:0] = (decoded_reg_strb.raw_mode_out_en && !decoded_req_is_wr) ? field_storage.raw_mode_out_en.raw_mode_out_en.value : '0;
+    assign readback_array[2][31:1] = '0;
     for(genvar i0=0; i0<1; i0++) begin
-        assign readback_array[i0 * 1 + 4] = hwif_in.raw_mode_in_data_valid[i0].rd_ack ? hwif_in.raw_mode_in_data_valid[i0].rd_data : '0;
+        assign readback_array[i0 * 1 + 3] = hwif_in.raw_mode_in_data_valid[i0].rd_ack ? hwif_in.raw_mode_in_data_valid[i0].rd_data : '0;
     end
     for(genvar i0=0; i0<1; i0++) begin
-        assign readback_array[i0 * 1 + 5][10:0] = (decoded_reg_strb.tx_phy_clk_div[i0] && !decoded_req_is_wr) ? field_storage.tx_phy_clk_div[i0].clk_divs.value : '0;
+        assign readback_array[i0 * 1 + 4][10:0] = (decoded_reg_strb.tx_phy_clk_div[i0] && !decoded_req_is_wr) ? field_storage.tx_phy_clk_div[i0].clk_divs.value : '0;
+        assign readback_array[i0 * 1 + 4][31:11] = '0;
+    end
+    for(genvar i0=0; i0<1; i0++) begin
+        assign readback_array[i0 * 1 + 5][10:0] = (decoded_reg_strb.tx_phy_clk_start[i0] && !decoded_req_is_wr) ? field_storage.tx_phy_clk_start[i0].clk_divs.value : '0;
         assign readback_array[i0 * 1 + 5][31:11] = '0;
     end
     for(genvar i0=0; i0<1; i0++) begin
-        assign readback_array[i0 * 1 + 6][10:0] = (decoded_reg_strb.tx_phy_clk_start[i0] && !decoded_req_is_wr) ? field_storage.tx_phy_clk_start[i0].clk_divs.value : '0;
+        assign readback_array[i0 * 1 + 6][10:0] = (decoded_reg_strb.tx_phy_clk_end[i0] && !decoded_req_is_wr) ? field_storage.tx_phy_clk_end[i0].clk_shift_end.value : '0;
         assign readback_array[i0 * 1 + 6][31:11] = '0;
     end
+    assign readback_array[7][0:0] = (decoded_reg_strb.channel_alloc_tx_cfg && !decoded_req_is_wr) ? 1'h1 : '0;
+    assign readback_array[7][1:1] = (decoded_reg_strb.channel_alloc_tx_cfg && !decoded_req_is_wr) ? 1'h1 : '0;
+    assign readback_array[7][7:2] = '0;
+    assign readback_array[7][15:8] = (decoded_reg_strb.channel_alloc_tx_cfg && !decoded_req_is_wr) ? 8'h2 : '0;
+    assign readback_array[7][31:16] = '0;
+    assign readback_array[8] = hwif_in.channel_alloc_tx_ctrl.rd_ack ? hwif_in.channel_alloc_tx_ctrl.rd_data : '0;
+    assign readback_array[9][0:0] = (decoded_reg_strb.channel_alloc_rx_cfg && !decoded_req_is_wr) ? 1'h1 : '0;
+    assign readback_array[9][1:1] = (decoded_reg_strb.channel_alloc_rx_cfg && !decoded_req_is_wr) ? 1'h1 : '0;
+    assign readback_array[9][7:2] = '0;
+    assign readback_array[9][15:8] = (decoded_reg_strb.channel_alloc_rx_cfg && !decoded_req_is_wr) ? 8'h2 : '0;
+    assign readback_array[9][16:16] = (decoded_reg_strb.channel_alloc_rx_cfg && !decoded_req_is_wr) ? 1'h1 : '0;
+    assign readback_array[9][31:17] = '0;
+    assign readback_array[10] = hwif_in.channel_alloc_rx_ctrl.rd_ack ? hwif_in.channel_alloc_rx_ctrl.rd_data : '0;
     for(genvar i0=0; i0<1; i0++) begin
-        assign readback_array[i0 * 1 + 7][10:0] = (decoded_reg_strb.tx_phy_clk_end[i0] && !decoded_req_is_wr) ? field_storage.tx_phy_clk_end[i0].clk_shift_end.value : '0;
-        assign readback_array[i0 * 1 + 7][31:11] = '0;
+        assign readback_array[i0 * 1 + 11][0:0] = (decoded_reg_strb.channel_alloc_tx_ch_en[i0] && !decoded_req_is_wr) ? 1'h1 : '0;
+        assign readback_array[i0 * 1 + 11][31:1] = '0;
     end
-    assign readback_array[8][0:0] = (decoded_reg_strb.channel_alloc_tx_cfg && !decoded_req_is_wr) ? 1'h1 : '0;
-    assign readback_array[8][1:1] = (decoded_reg_strb.channel_alloc_tx_cfg && !decoded_req_is_wr) ? 1'h1 : '0;
-    assign readback_array[8][7:2] = '0;
-    assign readback_array[8][15:8] = (decoded_reg_strb.channel_alloc_tx_cfg && !decoded_req_is_wr) ? 8'h2 : '0;
-    assign readback_array[8][31:16] = '0;
-    assign readback_array[9] = hwif_in.channel_alloc_tx_ctrl.rd_ack ? hwif_in.channel_alloc_tx_ctrl.rd_data : '0;
-    assign readback_array[10][0:0] = (decoded_reg_strb.channel_alloc_rx_cfg && !decoded_req_is_wr) ? 1'h1 : '0;
-    assign readback_array[10][1:1] = (decoded_reg_strb.channel_alloc_rx_cfg && !decoded_req_is_wr) ? 1'h1 : '0;
-    assign readback_array[10][7:2] = '0;
-    assign readback_array[10][15:8] = (decoded_reg_strb.channel_alloc_rx_cfg && !decoded_req_is_wr) ? 8'h2 : '0;
-    assign readback_array[10][16:16] = (decoded_reg_strb.channel_alloc_rx_cfg && !decoded_req_is_wr) ? 1'h1 : '0;
-    assign readback_array[10][31:17] = '0;
-    assign readback_array[11] = hwif_in.channel_alloc_rx_ctrl.rd_ack ? hwif_in.channel_alloc_rx_ctrl.rd_data : '0;
     for(genvar i0=0; i0<1; i0++) begin
-        assign readback_array[i0 * 1 + 12][0:0] = (decoded_reg_strb.channel_alloc_tx_ch_en[i0] && !decoded_req_is_wr) ? 1'h1 : '0;
+        assign readback_array[i0 * 1 + 12][0:0] = (decoded_reg_strb.channel_alloc_rx_ch_en[i0] && !decoded_req_is_wr) ? 1'h1 : '0;
         assign readback_array[i0 * 1 + 12][31:1] = '0;
-    end
-    for(genvar i0=0; i0<1; i0++) begin
-        assign readback_array[i0 * 1 + 13][0:0] = (decoded_reg_strb.channel_alloc_rx_ch_en[i0] && !decoded_req_is_wr) ? 1'h1 : '0;
-        assign readback_array[i0 * 1 + 13][31:1] = '0;
     end
 
     // Reduce the array
@@ -691,7 +653,7 @@ module slink_reg #(
         readback_done = decoded_req & ~decoded_req_is_wr & ~decoded_strb_is_external;
         readback_err = '0;
         readback_data_var = '0;
-        for(int i=0; i<14; i++) readback_data_var |= readback_array[i];
+        for(int i=0; i<13; i++) readback_data_var |= readback_array[i];
         readback_data = readback_data_var;
     end
 

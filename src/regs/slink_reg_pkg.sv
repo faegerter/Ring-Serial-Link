@@ -88,14 +88,6 @@ package slink_reg_pkg;
 
     typedef struct {
         logic value;
-    } slink_reg__ctrl__reset_n__out_t;
-
-    typedef struct {
-        slink_reg__ctrl__reset_n__out_t reset_n;
-    } slink_reg__ctrl__out_t;
-
-    typedef struct {
-        logic value;
     } slink_reg__raw_mode_en__raw_mode_en__out_t;
 
     typedef struct {
@@ -261,7 +253,6 @@ package slink_reg_pkg;
     } slink_reg__channel_alloc_rx_ch_en__out_t;
 
     typedef struct {
-        slink_reg__ctrl__out_t ctrl;
         slink_reg__raw_mode_en__out_t raw_mode_en;
         slink_reg__raw_mode_in_data__external__out_t raw_mode_in_data;
         slink_reg__raw_mode_in_ch_sel__out_t raw_mode_in_ch_sel;
