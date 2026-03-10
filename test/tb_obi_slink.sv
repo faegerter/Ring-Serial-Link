@@ -54,7 +54,7 @@ module tb_obi_slink;
     // ==============
     //    Config
     // ==============
-    localparam int unsigned TestDuration    = 2;
+    localparam int unsigned TestDuration    = 10;
     localparam int unsigned MaxClkDiv       = 2**Log2MaxClkDiv;
 
     localparam time         TckSys1         = 50ns;
@@ -217,9 +217,9 @@ module tb_obi_slink;
         .MinAddr          ( 32'h1000_0000    ),
         .MaxAddr          ( 32'hffff_ffff    ),
         .AMinWaitCycles   ( 0                ),
-        .AMaxWaitCycles   ( 100              ),
+        .AMaxWaitCycles   ( 10               ),
         .RMinWaitCycles   ( 0                ),
-        .RMaxWaitCycles   ( 100              )
+        .RMaxWaitCycles   ( 10               )
     ) obi_rand_manager_t;
 
     typedef obi_test::obi_rand_subordinate #(
@@ -229,9 +229,9 @@ module tb_obi_slink;
         .TA             ( 100ps             ),
         .TT             ( 500ps             ),
         .AMinWaitCycles ( 0                 ),
-        .AMaxWaitCycles ( 100               ),
+        .AMaxWaitCycles ( 10                ),
         .RMinWaitCycles ( 0                 ),
-        .RMaxWaitCycles ( 100               )
+        .RMaxWaitCycles ( 10                )
     ) obi_rand_subordinate_t;
 
     static obi_rand_manager_t obi_rand_manager_1 = new ( obi_in_1,  "obi_mst_1" );
