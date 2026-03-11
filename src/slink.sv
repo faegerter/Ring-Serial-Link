@@ -5,6 +5,9 @@
 // Authors:
 //  - Tim Fischer <fischeti@iis.ee.ethz.ch>
 //  - Manuel Eggimann <meggimann@iis.ee.ethz.ch>
+//  - Llorenç Muela Hausmann <lmuela@ethz.ch>
+//  - Fabian Aegerter <faegerter@ethz.ch>
+
 
 `include "common_cells/registers.svh"
 `include "common_cells/assertions.svh"
@@ -23,16 +26,8 @@ module slink
     parameter type a_chan_t   = logic,
     parameter type r_chan_t   = logic
 ) (
-    // There are 3 different clock/resets:
-    // 1) clk_i & rst_ni: "always-on" clock & reset coming from the SoC domain. Only config registers are conected to this clock
-    // 2) clk_sl_i & rst_sl_ni: Same as 1) but clock is gated and reset is SW synchronized. This is the clock that drives the serial link
-    //    i.e. protocol, data-link and physical layer all run on this clock and can be clock gated if needed. If no clock gating, reset synchronization
-    //    is desired, you can tie clk_sl_i -> clk_i resp. rst_sl_ni -> rst_ni
-    // 3) clk_reg_i & rst_reg_ni: peripheral clock and reset. Only connected to RegBus CDC. If NoRegCdc is set, this clock must be the same as 1)
     input  logic                      clk_i,
     input  logic                      rst_ni,
-    input  logic                      clk_sl_i,
-    input  logic                      rst_sl_ni,
     input  logic                      testmode_i,
     input  obi_req_t                  obi_in_req_i,
     output obi_rsp_t                  obi_in_rsp_o,
@@ -61,10 +56,9 @@ module slink
 
 
     // The payload that is converted into an AXI stream consists of
-    // 1) AXI Beat
-    // 2) B Channel (which is always transmitted)
-    // 3) Header
-    // 4) Credit for flow control
+    // 1) OBI Beat
+    // 2) Header
+    // 3) Credit for flow control
     typedef struct packed {
         logic [MaxObiChannelBits-1:0] obi_ch;
         slink_pkg::tag_e hdr;
@@ -129,8 +123,8 @@ module slink
         .payload_t      ( payload_t     ),
         .credit_t       ( credit_t      )
     ) i_serial_link_protocol (
-        .clk_i          ( clk_sl_i        ),
-        .rst_ni         ( rst_sl_ni       ),
+        .clk_i          ( clk_i        ),
+        .rst_ni         ( rst_ni       ),
         .obi_in_req_i   ( obi_in_req_i    ),
         .obi_in_rsp_o   ( obi_in_rsp_o    ),
         .obi_out_req_o  ( obi_out_req_o   ),
@@ -180,8 +174,8 @@ module slink
         .PayloadSplits    ( PayloadSplits     ),
         .EnDdr            ( EnDdr             )
     ) i_serial_link_data_link (
-        .clk_i                                   ( clk_sl_i                                         ),
-        .rst_ni                                  ( rst_sl_ni                                        ),
+        .clk_i                                   ( clk_i                                            ),
+        .rst_ni                                  ( rst_ni                                        ),
         .axis_in_req_i                           ( axis_out_req                                     ),
         .axis_in_rsp_o                           ( axis_out_rsp                                     ),
         .axis_out_req_o                          ( axis_in_req                                      ),
@@ -271,8 +265,8 @@ module slink
             .phy_data_t  ( phy_data_t    ),
             .NumChannels ( NumChannels   )
         ) i_channel_allocator(
-            .clk_i                     ( clk_sl_i                                       ),
-            .rst_ni                    ( rst_sl_ni                                      ),
+            .clk_i                     ( clk_i                                          ),
+            .rst_ni                    ( rst_ni                                      ),
             .cfg_tx_clear_i            ( cfg_tx_clear                                   ),
             .cfg_tx_channel_en_i       ( cfg_tx_channel_en                              ),
             .cfg_tx_bypass_en_i        ( reg2hw.channel_alloc_tx_cfg.bypass_en.value ),
@@ -317,8 +311,8 @@ module slink
             .EnDdr            ( EnDdr             ),
             .phy_data_t       ( phy_data_t        )
         ) i_serial_link_physical (
-            .clk_i             ( clk_sl_i                     ),
-            .rst_ni            ( rst_sl_ni                    ),
+            .clk_i             ( clk_i                     ),
+            .rst_ni            ( rst_ni                    ),
             .clk_div_i         ( reg2hw.tx_phy_clk_div[i].clk_divs.value ),
             .clk_shift_start_i ( reg2hw.tx_phy_clk_start[i].clk_divs.value ),
             .clk_shift_end_i   ( reg2hw.tx_phy_clk_end[i].clk_shift_end.value ),
@@ -359,7 +353,7 @@ module slink
         .hwif_out     ( reg2hw            )
     );
 
-    //TODO remove the rready in hte cfg regs and then remove this and get rid of this annoying optional mess
+    //TODO remove the rready in the cfg regs and then remove the r.optional
     always_comb begin
         obi_reg_rsp_o.r.r_optional = '0;
         obi_reg_rready = '1;

@@ -126,8 +126,6 @@ module tb_obi_slink;
     ) i_serial_link_1 (
         .clk_i         ( clk_1           ),
         .rst_ni        ( rst_1_n         ),
-        .clk_sl_i      ( clk_1           ),
-        .rst_sl_ni     ( rst_1_n         ),
         .testmode_i    ( 1'b0            ),
         .obi_in_req_i  ( obi_in_req_1    ),
         .obi_in_rsp_o  ( obi_in_rsp_1    ),
@@ -150,8 +148,6 @@ module tb_obi_slink;
     ) i_serial_link_2 (
         .clk_i         ( clk_2           ),
         .rst_ni        ( rst_2_n         ),
-        .clk_sl_i      ( clk_2           ),
-        .rst_sl_ni     ( rst_2_n         ),
         .testmode_i    ( 1'b0            ),
         .obi_in_req_i  ( obi_in_req_2    ),
         .obi_in_rsp_o  ( obi_in_rsp_2    ),

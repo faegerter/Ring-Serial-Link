@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: SHL-0.51
 
 // Author: Tim Fischer <fischeti@iis.ee.ethz.ch>
-
+// Author: Llorenç Muela Hausmann <lmuela@ethz.ch>
+// Author: Fabian Aegerter <faegerter@ethz.ch>
 
 `include "common_cells/registers.svh"
 `include "common_cells/assertions.svh"
@@ -40,9 +41,9 @@ module slink_prot_layer #(
 
     typedef enum logic [1:0] {
         Idle     = 2'b00,
-        RPend    = 2'b01,
-        APend    = 2'b10,
-        ARPend   = 2'b11
+        TxPend    = 2'b01,
+        RxPend    = 2'b10,
+        RxTxPend   = 2'b11
     } commiter_state_e;
 
         logic entropy_q, entropy_d;
@@ -54,7 +55,7 @@ module slink_prot_layer #(
         logic credit_to_send_force;
 
 
-    logic gnt_a, gnt_r;
+    logic a_gnt, r_gnt;
 
     logic axis_reg_valid_out, axis_reg_ready_out;
     logic axis_reg_valid_in, axis_reg_ready_in;
@@ -62,53 +63,53 @@ module slink_prot_layer #(
 
 
     always_comb begin : commiter
-        gnt_a  = 1'b0;
-        gnt_r = 1'b0;
+        a_gnt  = 1'b0;
+        r_gnt = 1'b0;
         commiter_state_d = commiter_state_q;
         
         unique case(commiter_state_q)
             Idle: begin
                 if (obi_in_req_i.req) begin
-                    gnt_a = (obi_out_req_o.req) ? entropy_q : 1'b1;
+                    a_gnt = (obi_out_req_o.req) ? entropy_q : 1'b1;
                 end
                 if(obi_out_req_o.req) begin
-                    gnt_r = (obi_in_req_i.req) ? ~entropy_q : 1'b1;
+                    r_gnt = (obi_in_req_i.req) ? ~entropy_q : 1'b1;
                 end
-                if(obi_in_rsp_o.gnt & gnt_a) begin
-                    commiter_state_d = APend;
+                if(obi_in_rsp_o.gnt & a_gnt) begin
+                    commiter_state_d = RxPend;
                 end
-                if(obi_out_rsp_i.gnt & gnt_r) begin
-                    commiter_state_d = RPend;
+                if(obi_out_rsp_i.gnt & r_gnt) begin
+                    commiter_state_d = TxPend;
                 end
             end
-            APend: begin 
+            RxPend: begin 
                 if(obi_out_req_o.req) begin 
-                    gnt_r = 1'b1;
+                    r_gnt = 1'b1;
                 end
                 if(obi_in_rsp_o.rvalid)begin 
-                    commiter_state_d = (gnt_r & obi_out_rsp_i.gnt) ? RPend : Idle;
+                    commiter_state_d = (r_gnt & obi_out_rsp_i.gnt) ? TxPend : Idle;
                 end else begin
-                    commiter_state_d = (gnt_r & obi_out_rsp_i.gnt) ? ARPend : APend;
+                    commiter_state_d = (r_gnt & obi_out_rsp_i.gnt) ? RxTxPend : RxPend;
                 end
             end
-            RPend: begin 
+            TxPend: begin 
                 if(obi_in_req_i.req) begin 
-                    gnt_a = 1'b1;
+                    a_gnt = 1'b1;
                 end
                 if(obi_out_rsp_i.rvalid)begin 
-                    commiter_state_d = (gnt_a & obi_in_rsp_o.gnt) ? APend : Idle;
+                    commiter_state_d = (a_gnt & obi_in_rsp_o.gnt) ? RxPend : Idle;
                 end else begin
-                    commiter_state_d = (gnt_a & obi_in_rsp_o.gnt) ? ARPend : RPend;
+                    commiter_state_d = (a_gnt & obi_in_rsp_o.gnt) ? RxTxPend : TxPend;
                 end
             end
-            ARPend: begin
-                    if(obi_in_rsp_o.rvalid)begin
-                        commiter_state_d = RPend;
-                    end 
-                    if(obi_out_rsp_i.rvalid)begin 
-                        commiter_state_d = APend;
-                    end
+            RxTxPend: begin
+                if(obi_in_rsp_o.rvalid)begin
+                    commiter_state_d = TxPend;
+                end 
+                if(obi_out_rsp_i.rvalid)begin 
+                    commiter_state_d = RxPend;
                 end
+            end
             default:;
         endcase
     end
@@ -122,11 +123,11 @@ module slink_prot_layer #(
         payload_out = '0;
         payload_out.credit = credits_to_send_q;
 
-        if (gnt_a) begin
+        if (a_gnt) begin
             payload_out.obi_ch = obi_in_req_i.a;
             payload_out.hdr = slink_pkg::TagA;
         end
-        else if(gnt_r)begin 
+        else if(r_gnt)begin 
             payload_out.obi_ch = obi_out_rsp_i.r;
             payload_out.hdr = slink_pkg::TagR;
         end
@@ -146,7 +147,7 @@ module slink_prot_layer #(
         end
 
         // Send responses if request was sent
-        obi_in_rsp_o.gnt = gnt_a & axis_reg_ready_in & axis_reg_valid_in;
+        obi_in_rsp_o.gnt = a_gnt & axis_reg_ready_in & axis_reg_valid_in;
     end
 
 
@@ -247,12 +248,9 @@ module slink_prot_layer #(
     ////////////////////
     //   ASSERTIONS   //
     ////////////////////
-    // `ASSERT(AxiComitterAw, axi_in_req_i.w_valid & axi_in_rsp_o.w_ready & axi_in_req_i.w.last
-    //         |=> $fell(commiter_state_q[1]))
-    // `ASSERT(AxiComitterAr, axi_in_rsp_o.r_valid & axi_in_req_i.r_ready & axi_in_rsp_o.r.last
-    //         |=> $fell(commiter_state_q[0]))
-    //`ASSERT(AxisStable, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> $stable(axis_out_req_o.t))
-    //`ASSERT(AxisHandshake, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> axis_out_req_o.tvalid)
+    
+    `ASSERT(AxisStable, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> $stable(axis_out_req_o.t))
+    `ASSERT(AxisHandshake, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> axis_out_req_o.tvalid)
     `ASSERT_INIT(ForceSendTh, ForceSendThresh > 0)
     `ASSERT(MaxCredits, credits_out_q <= NumCredits)
     `ASSERT(MaxSendCredits, credits_to_send_q <= NumCredits)
