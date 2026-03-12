@@ -55,7 +55,7 @@ module slink_prot_layer #(
         logic credit_to_send_force;
 
 
-    logic a_gnt, r_gnt;
+    logic a_gnt, r_gnt, req_to_send;
 
     logic axis_reg_valid_out, axis_reg_ready_out;
     logic axis_reg_valid_in, axis_reg_ready_in;
@@ -72,7 +72,7 @@ module slink_prot_layer #(
                 if (obi_in_req_i.req) begin
                     a_gnt = (obi_out_req_o.req) ? entropy_q : 1'b1;
                 end
-                if(obi_out_req_o.req) begin
+                if(req_to_send) begin
                     r_gnt = (obi_in_req_i.req) ? ~entropy_q : 1'b1;
                 end
                 if(obi_in_rsp_o.gnt & a_gnt) begin
@@ -83,7 +83,7 @@ module slink_prot_layer #(
                 end
             end
             RxPend: begin 
-                if(obi_out_req_o.req) begin 
+                if(req_to_send) begin 
                     r_gnt = 1'b1;
                 end
                 if(obi_in_rsp_o.rvalid)begin 
@@ -148,6 +148,7 @@ module slink_prot_layer #(
 
         // Send responses if request was sent
         obi_in_rsp_o.gnt = a_gnt & axis_reg_ready_in & axis_reg_valid_in;
+        obi_out_req_o.req = r_gnt & axis_reg_ready_in & axis_reg_valid_in;
     end
 
 
@@ -177,7 +178,6 @@ module slink_prot_layer #(
     logic credit_only_packet;
 
 
-
     assign obi_ch_sent = (obi_out_req_o.req & obi_out_rsp_i.gnt) | (obi_in_rsp_o.rvalid);
 
     assign payload_in = payload_t'(axis_in_req_i.t.data);
@@ -185,8 +185,8 @@ module slink_prot_layer #(
 
 
     always_comb begin : unpacker
-        obi_out_req_o.req = 1'b0;
         obi_in_rsp_o.rvalid = 1'b0;
+        req_to_send = 1'b0;
 
         axis_in_rsp_o = '0;
 
@@ -194,7 +194,7 @@ module slink_prot_layer #(
         obi_in_rsp_o.r = r_chan_t'(payload_in.obi_ch);
 
         if (axis_in_req_i.tvalid) begin
-            obi_out_req_o.req = (payload_in.hdr == slink_pkg::TagA);
+            req_to_send = (payload_in.hdr == slink_pkg::TagA);
             obi_in_rsp_o.rvalid = (payload_in.hdr == slink_pkg::TagR);
             if (credit_only_packet) begin
                 axis_in_rsp_o.tready = 1'b1;
