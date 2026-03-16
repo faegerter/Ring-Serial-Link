@@ -21,8 +21,9 @@ module slink_link_layer #(
   parameter bit EnDdr = 1'b1,
   localparam int Log2NumChannels = (NumChannels > 1)? $clog2(NumChannels) : 1,
   localparam int unsigned Log2RawModeFifoDepth = $clog2(RawModeFifoDepth),
+  parameter type credit_t  = logic,
   // For credit-based control flow
-  parameter int NumCredits  = -1,
+  parameter int NumCredits  = -1
 ) (
   input  logic                            clk_i,
   input  logic                            rst_ni,
@@ -182,11 +183,11 @@ module slink_link_layer #(
 
   assign credit_in_rise = credit_in_i & ~credit_in_q;
   assign credit_return_o = flow_control_fifo_ready_out;
-  
+
   always_comb begin
       credits_out_d = credits_out_q;
       // The order of the two if blocks matter!
-      if (data_out_valid_o) begin
+      if (data_out_ready_i) begin
           credits_out_d--;
       end
       if (credit_in_rise) begin
@@ -219,7 +220,7 @@ module slink_link_layer #(
       end
     end else begin
       // Normal operating mode
-      begin (if credits_out_q != 0)
+      begin if (credits_out_q != 0)
         unique case (link_state_q)
           LinkSendIdle: begin
             if (axis_in_req_i.tvalid) begin

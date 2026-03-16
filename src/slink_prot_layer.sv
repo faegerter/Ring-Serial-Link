@@ -193,6 +193,4 @@ module slink_prot_layer #(
     
     `ASSERT(AxisStable, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> $stable(axis_out_req_o.t))
     `ASSERT(AxisHandshake, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> axis_out_req_o.tvalid)
-    `ASSERT_INIT(ForceSendTh, ForceSendThresh > 0)
-
 endmodule

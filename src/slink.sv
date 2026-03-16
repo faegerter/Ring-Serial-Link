@@ -18,8 +18,8 @@
 module slink
     import slink_reg_pkg::*;
 #(
-    // Number of credits for flow control
-    parameter int NumCredits        = 8,
+    //Size of the RecvFfifo Buffer in payloads
+    parameter int RecvFifoPayloadDepfth = 8,
     parameter int ObiAddrWidth      = 32,
     parameter type obi_req_t  = logic,
     parameter type obi_rsp_t  = logic,
@@ -43,15 +43,13 @@ module slink
     output logic                             credit_return_o 
 );
 
-
     localparam int unsigned NumBitsPerCycle = NumLanes * (1 + EnDdr);
     localparam int unsigned RawModeFifoDepth = 2**Log2RawModeTXFifoDepth;
     localparam int unsigned MaxClkDiv = 2**Log2MaxClkDiv;
 
-    typedef logic [$clog2(NumCredits):0] credit_t;
-    typedef logic [NumBitsPerCycle-1:0] phy_data_t;
+ 
 
-    // Determine the largest sized AXI channel
+    // Determine the largest sized OBI channel
     localparam int ObiChannels[2] = {$bits(a_chan_t),
                                      $bits(r_chan_t)};
     localparam int MaxObiChannelBits = slink_pkg::find_max_channel(ObiChannels);
@@ -68,7 +66,11 @@ module slink
 
     localparam int BandWidth = NumChannels * NumBitsPerCycle; // doubled BW if DDR enabled
     localparam int PayloadSplits = ($bits(payload_t) + BandWidth - 1) / BandWidth;
-    localparam int RecvFifoDepth = NumCredits * PayloadSplits;
+    localparam int RecvFifoDepth = RecvFifoPayloadDepfth * PayloadSplits;
+    localparam int unsigned NumCredits = RecvFifoDepth;
+    
+    typedef logic [$clog2(NumCredits):0] credit_t;
+    typedef logic [NumBitsPerCycle-1:0] phy_data_t;
 
     // Axi stream dimension must be a multiple of 8 bits
     localparam int StreamDataBytes = ($bits(payload_t) + 7) / 8;
@@ -114,15 +116,13 @@ module slink
     ////////////////////////
 
     slink_prot_layer #(
-        .NumCredits     ( NumCredits    ),
         .obi_req_t      ( obi_req_t     ),
         .obi_rsp_t      ( obi_rsp_t     ),
         .axis_req_t     ( axis_req_t    ),
         .axis_rsp_t     ( axis_rsp_t    ),
         .a_chan_t       ( a_chan_t      ),
         .r_chan_t       ( r_chan_t      ),
-        .payload_t      ( payload_t     ),
-        .credit_t       ( credit_t      )
+        .payload_t      ( payload_t     )
     ) i_serial_link_protocol (
         .clk_i          ( clk_i        ),
         .rst_ni         ( rst_ni       ),
@@ -173,7 +173,9 @@ module slink
         .RecvFifoDepth    ( RecvFifoDepth     ),
         .RawModeFifoDepth ( RawModeFifoDepth  ),
         .PayloadSplits    ( PayloadSplits     ),
-        .EnDdr            ( EnDdr             )
+        .EnDdr            ( EnDdr             ),
+        .credit_t         ( credit_t          ),
+        .NumCredits       ( NumCredits        )
     ) i_serial_link_data_link (
         .clk_i                                   ( clk_i                                            ),
         .rst_ni                                  ( rst_ni                                        ),
