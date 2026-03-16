@@ -38,7 +38,9 @@ module slink
     input  logic [NumChannels-1:0]    ddr_rcv_clk_i,
     output logic [NumChannels-1:0]    ddr_rcv_clk_o,
     input  logic [NumChannels-1:0][NumLanes-1:0] ddr_i,
-    output logic [NumChannels-1:0][NumLanes-1:0] ddr_o
+    output logic [NumChannels-1:0][NumLanes-1:0] ddr_o,
+    input  logic                             credit_in_i,
+    output logic                             credit_return_o 
 );
 
 
@@ -62,7 +64,6 @@ module slink
     typedef struct packed {
         logic [MaxObiChannelBits-1:0] obi_ch;
         slink_pkg::tag_e hdr;
-        credit_t credit;
     } payload_t;
 
     localparam int BandWidth = NumChannels * NumBitsPerCycle; // doubled BW if DDR enabled
@@ -199,7 +200,9 @@ module slink
         .cfg_raw_mode_out_en_i                   ( reg2hw.raw_mode_out_en.raw_mode_out_en.value ),
         .cfg_raw_mode_out_data_fifo_clear_i      ( cfg_raw_mode_out_data_fifo_clear                 ),
         .cfg_raw_mode_out_data_fifo_fill_state_o ( raw_mode_out_data_fill_state ),
-        .cfg_raw_mode_out_data_fifo_is_full_o    ( raw_mode_out_data_is_full )
+        .cfg_raw_mode_out_data_fifo_is_full_o    ( raw_mode_out_data_is_full ),
+        .credit_in_i                             ( credit_in_i                                      ),
+        .credit_return_o                         ( credit_return_o                                  )
     );
 
     always_comb begin

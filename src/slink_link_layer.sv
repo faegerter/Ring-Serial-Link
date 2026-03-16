@@ -20,7 +20,9 @@ module slink_link_layer #(
   parameter int PayloadSplits = -1,
   parameter bit EnDdr = 1'b1,
   localparam int Log2NumChannels = (NumChannels > 1)? $clog2(NumChannels) : 1,
-  localparam int unsigned Log2RawModeFifoDepth = $clog2(RawModeFifoDepth)
+  localparam int unsigned Log2RawModeFifoDepth = $clog2(RawModeFifoDepth),
+  // For credit-based control flow
+  parameter int NumCredits  = -1,
 ) (
   input  logic                            clk_i,
   input  logic                            rst_ni,
@@ -49,7 +51,10 @@ module slink_link_layer #(
   input  logic                            cfg_raw_mode_out_en_i,
   input  logic                            cfg_raw_mode_out_data_fifo_clear_i,
   output logic [Log2RawModeFifoDepth-1:0] cfg_raw_mode_out_data_fifo_fill_state_o,
-  output logic                            cfg_raw_mode_out_data_fifo_is_full_o
+  output logic                            cfg_raw_mode_out_data_fifo_is_full_o,
+  // Credits
+  input  logic                             credit_in_i,
+  output logic                             credit_return_o 
 );
 
   typedef enum logic [1:0] {LinkSendIdle, LinkSendBusy} link_state_e;
@@ -66,6 +71,7 @@ module slink_link_layer #(
   logic raw_mode_fifo_push, raw_mode_fifo_pop;
   phy_data_t raw_mode_fifo_data_in, raw_mode_fifo_data_out;
 
+  credit_t credits_out_q, credits_out_d;
 
   /////////////////
   //   DATA IN   //
@@ -160,6 +166,36 @@ module slink_link_layer #(
 
   `FF(recv_reg_index_q, recv_reg_index_d, '0)
 
+  //////////////////////
+  //   FLOW CONTROL   //
+  //////////////////////
+
+  logic credit_in_q;
+  logic credit_in_rise;
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni)
+      credit_in_q <= 1'b0;
+    else
+      credit_in_q <= credit_in_i;
+  end
+
+  assign credit_in_rise = credit_in_i & ~credit_in_q;
+  assign credit_return_o = flow_control_fifo_ready_out;
+  
+  always_comb begin
+      credits_out_d = credits_out_q;
+      // The order of the two if blocks matter!
+      if (data_out_valid_o) begin
+          credits_out_d--;
+      end
+      if (credit_in_rise) begin
+          credits_out_d ++;
+      end
+  end
+
+  `FF(credits_out_q, credits_out_d, NumCredits)
+
   //////////////////
   //   DATA OUT   //
   //////////////////
@@ -183,35 +219,37 @@ module slink_link_layer #(
       end
     end else begin
       // Normal operating mode
-      unique case (link_state_q)
-        LinkSendIdle: begin
-          if (axis_in_req_i.tvalid) begin
-            link_out_index_d = NumChannels * NumLanes * (1 + EnDdr);
+      begin (if credits_out_q != 0)
+        unique case (link_state_q)
+          LinkSendIdle: begin
+            if (axis_in_req_i.tvalid) begin
+              link_out_index_d = NumChannels * NumLanes * (1 + EnDdr);
+              data_out_valid_o = '1;
+              data_out_o = axis_in_req_i.t.data;
+              if (data_out_ready_i) begin
+                link_state_d = LinkSendBusy;
+                if (link_out_index_d >= $bits(axis_in_req_i.t.data)) begin
+                  link_state_d = LinkSendIdle;
+                  axis_in_rsp_o.tready = 1'b1;
+                end
+              end
+            end
+          end
+
+          LinkSendBusy: begin
             data_out_valid_o = '1;
-            data_out_o = axis_in_req_i.t.data;
+            data_out_o = axis_in_req_i.t.data >> link_out_index_q;
             if (data_out_ready_i) begin
-              link_state_d = LinkSendBusy;
+              link_out_index_d = link_out_index_q + NumChannels * NumLanes * (1 + EnDdr);
               if (link_out_index_d >= $bits(axis_in_req_i.t.data)) begin
                 link_state_d = LinkSendIdle;
                 axis_in_rsp_o.tready = 1'b1;
               end
             end
           end
-        end
-
-        LinkSendBusy: begin
-          data_out_valid_o = '1;
-          data_out_o = axis_in_req_i.t.data >> link_out_index_q;
-          if (data_out_ready_i) begin
-            link_out_index_d = link_out_index_q + NumChannels * NumLanes * (1 + EnDdr);
-            if (link_out_index_d >= $bits(axis_in_req_i.t.data)) begin
-              link_state_d = LinkSendIdle;
-              axis_in_rsp_o.tready = 1'b1;
-            end
-          end
-        end
-        default:;
-      endcase
+          default:;
+        endcase
+      end
     end
   end
 

@@ -18,13 +18,7 @@ module slink_prot_layer #(
     parameter type axis_rsp_t = logic,
     parameter type a_chan_t   = logic,
     parameter type r_chan_t   = logic,
-    parameter type payload_t  = logic,
-    parameter type credit_t   = logic,
-    // For credit-based control flow
-    parameter int NumCredits  = -1,
-    // Force send out credits belonging to the other side
-    // after ForceSendThresh is reached
-    localparam int ForceSendThresh  = NumCredits - 4
+    parameter type payload_t  = logic
 ) (
     input  logic      clk_i,
     input  logic      rst_ni,
@@ -46,13 +40,9 @@ module slink_prot_layer #(
         RxTxPend   = 2'b11
     } commiter_state_e;
 
-        logic entropy_q, entropy_d;
-        commiter_state_e commiter_state_q, commiter_state_d;
-        payload_t payload_out, payload_in;
-
-        credit_t credits_out_q, credits_out_d;
-        credit_t credits_to_send_q, credits_to_send_d;
-        logic credit_to_send_force;
+    logic entropy_q, entropy_d;
+    commiter_state_e commiter_state_q, commiter_state_d;
+    payload_t payload_out, payload_in;
 
 
     logic a_gnt, r_gnt, req_to_send;
@@ -121,7 +111,6 @@ module slink_prot_layer #(
 
     always_comb begin : sender
         payload_out = '0;
-        payload_out.credit = credits_to_send_q;
 
         if (a_gnt) begin
             payload_out.obi_ch = obi_in_req_i.a;
@@ -132,19 +121,8 @@ module slink_prot_layer #(
             payload_out.hdr = slink_pkg::TagR;
         end
 
-        // There are two reasons to send out a packet:
-        // 1) Send out an OBI beat (!TagIdle)
-        // 2) Send an empty packet with credits (credits_to_send_force)
-        axis_reg_valid_in = (payload_out.hdr != slink_pkg::TagIdle) | credit_to_send_force;
-
-        // There is a potential deadlock situation, when the last credit on the local side
-        // is consumed and all the credits from the other side are currently in-flight.
-        // To prevent this situation, the last credit is only consumed if credit is also sent back
-        if (credits_out_q == 0) begin
-            axis_reg_valid_in = 1'b0;
-        end else if (credits_out_q == 1 && credits_to_send_q == 0) begin
-            axis_reg_valid_in = 1'b0;
-        end
+        //Send out an OBI beat (!TagIdle)
+        axis_reg_valid_in = (payload_out.hdr != slink_pkg::TagIdle);
 
         // Send responses if request was sent
         obi_in_rsp_o.gnt = a_gnt & axis_reg_ready_in & axis_reg_valid_in;
@@ -175,13 +153,11 @@ module slink_prot_layer #(
     );
 
     logic obi_ch_sent;
-    logic credit_only_packet;
 
 
     assign obi_ch_sent = (obi_out_req_o.req & obi_out_rsp_i.gnt) | (obi_in_rsp_o.rvalid);
 
     assign payload_in = payload_t'(axis_in_req_i.t.data);
-    assign credit_only_packet = (payload_in.hdr == slink_pkg::TagIdle);
 
 
     always_comb begin : unpacker
@@ -196,9 +172,7 @@ module slink_prot_layer #(
         if (axis_in_req_i.tvalid) begin
             req_to_send = (payload_in.hdr == slink_pkg::TagA);
             obi_in_rsp_o.rvalid = (payload_in.hdr == slink_pkg::TagR);
-            if (credit_only_packet) begin
-                axis_in_rsp_o.tready = 1'b1;
-            end else begin
+             begin
                 // accept payload if either one of them was able to send
                 if (obi_ch_sent) begin
                     axis_in_rsp_o.tready = 1'b1;
@@ -211,39 +185,7 @@ module slink_prot_layer #(
     assign entropy_d = entropy_q + (axis_out_req_o.tvalid & axis_out_rsp_i.tready);
     `FF(entropy_q, entropy_d, '0);
 
-    //////////////////////
-    //   FLOW CONTROL   //
-    //////////////////////
 
-    // Flow control is theoretically part of the data link layer.
-    // However it is much simpler to implement it here where we have
-    // simple Handshake interfaces
-
-    always_comb begin
-        credits_out_d = credits_out_q;
-        credits_to_send_d = credits_to_send_q;
-        credit_to_send_force = 1'b0;
-
-        // Send empty packets with credits if there are too many
-        // credits to send but no AXI request transaction
-        if (credits_to_send_q >= ForceSendThresh) begin
-            credit_to_send_force = 1'b1;
-        end
-
-        // The order of the two if blocks matter!
-        if (axis_reg_valid_in & axis_reg_ready_in) begin
-            credits_out_d--;
-            credits_to_send_d = 0;
-        end
-
-        if (axis_in_req_i.tvalid & axis_in_rsp_o.tready) begin
-            credits_out_d += payload_in.credit;
-            credits_to_send_d++;
-        end
-    end
-
-    `FF(credits_out_q, credits_out_d, NumCredits)
-    `FF(credits_to_send_q, credits_to_send_d, 0)
 
     ////////////////////
     //   ASSERTIONS   //
@@ -252,7 +194,5 @@ module slink_prot_layer #(
     `ASSERT(AxisStable, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> $stable(axis_out_req_o.t))
     `ASSERT(AxisHandshake, axis_out_req_o.tvalid & !axis_out_rsp_i.tready |=> axis_out_req_o.tvalid)
     `ASSERT_INIT(ForceSendTh, ForceSendThresh > 0)
-    `ASSERT(MaxCredits, credits_out_q <= NumCredits)
-    `ASSERT(MaxSendCredits, credits_to_send_q <= NumCredits)
 
 endmodule
