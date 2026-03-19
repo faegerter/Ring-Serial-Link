@@ -39,8 +39,10 @@ module slink
     output logic [NumChannels-1:0]    ddr_rcv_clk_o,
     input  logic [NumChannels-1:0][NumLanes-1:0] ddr_i,
     output logic [NumChannels-1:0][NumLanes-1:0] ddr_o,
-    input  logic                             credit_in_i,
-    output logic                             credit_return_o 
+    input  logic                      credit_rtrn_req_i,
+    input  logic                      credit_rtrn_rsp_i,
+    output logic                      credit_rtrn_req_o, 
+    output logic                      credit_rtrn_rsp_o 
 );
 
     localparam int unsigned NumBitsPerCycle = NumLanes * (1 + EnDdr);
@@ -58,7 +60,6 @@ module slink
     // The payload that is converted into an AXI stream consists of
     // 1) OBI Beat
     // 2) Header
-    // 3) Credit for flow control
     typedef struct packed {
         logic [MaxObiChannelBits-1:0] obi_ch;
         slink_pkg::tag_e hdr;
@@ -109,7 +110,6 @@ module slink
     phy_data_t [NumChannels-1:0]  phy2alloc_data_in;
     logic [NumChannels-1:0]       phy2alloc_data_in_valid;
     logic [NumChannels-1:0]       alloc2phy_data_in_ready;
-
 
     ////////////////////////
     //   PROTOCOL LAYER   //
@@ -203,9 +203,12 @@ module slink
         .cfg_raw_mode_out_data_fifo_clear_i      ( cfg_raw_mode_out_data_fifo_clear                 ),
         .cfg_raw_mode_out_data_fifo_fill_state_o ( raw_mode_out_data_fill_state ),
         .cfg_raw_mode_out_data_fifo_is_full_o    ( raw_mode_out_data_is_full ),
-        .credit_in_i                             ( credit_in_i                                      ),
-        .credit_return_o                         ( credit_return_o                                  )
+        .credit_rtrn_req_i                       ( credit_rtrn_req_i                                ),
+        .credit_rtrn_rsp_i                       ( credit_rtrn_rsp_i                                ),
+        .credit_rtrn_req_o                       ( credit_rtrn_req_o                                ),
+        .credit_rtrn_rsp_o                       ( credit_rtrn_rsp_o                                )
     );
+
 
     always_comb begin
         hw2reg.raw_mode_in_data.rd_data = '0;

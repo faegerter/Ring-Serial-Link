@@ -95,8 +95,8 @@ module tb_obi_slink;
     // link
     wire [NumChannels*NumLanes-1:0] ddr_o;
     wire [NumChannels*NumLanes-1:0] ddr_i;
-    wire credit_in;
-    wire credit_out;
+    wire credit_rtrn_req_1, credit_rtrn_req_2;
+    wire credit_rtrn_rsp_1, credit_rtrn_rsp_2;
 
     // clock and reset
     logic clk_1, clk_2;
@@ -139,8 +139,10 @@ module tb_obi_slink;
         .ddr_rcv_clk_o ( ddr_rcv_clk_1   ),
         .ddr_i         ( ddr_i           ),
         .ddr_o         ( ddr_o           ),
-        .credit_in_i   ( credit_in       ),
-        .credit_return_o (credit_out     ) 
+        .credit_rtrn_req_i ( credit_rtrn_req_2  ),
+        .credit_rtrn_rsp_i ( credit_rtrn_rsp_1  ),
+        .credit_rtrn_req_o ( credit_rtrn_req_1  ),
+        .credit_rtrn_rsp_o ( credit_rtrn_rsp_2  )
     );
 
     // second serial instance
@@ -163,8 +165,10 @@ module tb_obi_slink;
         .ddr_rcv_clk_o ( ddr_rcv_clk_2   ),
         .ddr_i         ( ddr_o           ),
         .ddr_o         ( ddr_i           ),
-        .credit_in_i   ( credit_out      ),
-        .credit_return_o ( credit_in     ) 
+        .credit_rtrn_req_i  ( credit_rtrn_req_1   ),
+        .credit_rtrn_rsp_i  ( credit_rtrn_rsp_2   ),
+        .credit_rtrn_req_o  ( credit_rtrn_req_2   ),
+        .credit_rtrn_rsp_o  ( credit_rtrn_rsp_1   )
     );
 
     // OBI DV interfaces

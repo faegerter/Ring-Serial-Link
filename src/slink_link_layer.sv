@@ -23,7 +23,8 @@ module slink_link_layer #(
   localparam int unsigned Log2RawModeFifoDepth = $clog2(RawModeFifoDepth),
   parameter type credit_t  = logic,
   // For credit-based control flow
-  parameter int NumCredits  = -1
+  parameter int NumCredits  = -1,
+  parameter int unsigned CreditsSyncStages = 2
 ) (
   input  logic                            clk_i,
   input  logic                            rst_ni,
@@ -54,17 +55,21 @@ module slink_link_layer #(
   output logic [Log2RawModeFifoDepth-1:0] cfg_raw_mode_out_data_fifo_fill_state_o,
   output logic                            cfg_raw_mode_out_data_fifo_is_full_o,
   // Credits
-  input  logic                             credit_in_i,
-  output logic                             credit_return_o 
-);
+  input  logic                            credit_rtrn_req_i,
+  input  logic                            credit_rtrn_rsp_i,
+  output logic                            credit_rtrn_req_o, 
+  output logic                            credit_rtrn_rsp_o
+  );
 
   typedef enum logic [1:0] {LinkSendIdle, LinkSendBusy} link_state_e;
+  typedef enum logic [1:0] {CreditSendIdle, CreditSendBusy} credit_state_e;
 
   logic [PayloadSplits-1:0] recv_reg_in_valid, recv_reg_in_ready;
   logic [PayloadSplits-1:0] recv_reg_out_valid, recv_reg_out_ready;
   phy_data_t [PayloadSplits-1:0][NumChannels-1:0] recv_reg_data;
   logic [$clog2(PayloadSplits)-1:0] recv_reg_index_q, recv_reg_index_d;
 
+  credit_state_e credit_state_q, credit_state_d;
   link_state_e link_state_q, link_state_d;
   logic [$clog2(PayloadSplits*NumChannels*NumLanes*(1+EnDdr)):0] link_out_index_q, link_out_index_d;
 
@@ -73,6 +78,9 @@ module slink_link_layer #(
   phy_data_t raw_mode_fifo_data_in, raw_mode_fifo_data_out;
 
   credit_t credits_out_q, credits_out_d;
+  credit_t credits_to_send_q, credits_to_send_d;
+
+  logic [NumChannels-1:0] data_out_valid;
 
   /////////////////
   //   DATA IN   //
@@ -171,30 +179,90 @@ module slink_link_layer #(
   //   FLOW CONTROL   //
   //////////////////////
 
-  logic credit_in_q;
-  logic credit_in_rise;
 
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni)
-      credit_in_q <= 1'b0;
-    else
-      credit_in_q <= credit_in_i;
-  end
+  ////////////////////////////////////
+  //   RETURNING(SENDING) CREDITS   //
+  ////////////////////////////////////
 
-  assign credit_in_rise = credit_in_i & ~credit_in_q;
-  assign credit_return_o = flow_control_fifo_ready_out;
+  logic credit_out_inc_rise_q;
+  logic credit_rtrn_rsp_sync;
+  logic credit_tx_pulse_q, credit_tx_pulse_d;
+  logic credit_rx_pulse_q, credit_rx_pulse_d;
+  
+  
+  sync #(
+    .STAGES(CreditsSyncStages),
+    .ResetValue(1'b0)
+  ) i_credit_rsp_sync(
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .serial_i(credit_rtrn_rsp_i),
+    .serial_o(credit_rtrn_rsp_sync)
+);
 
   always_comb begin
+      credits_to_send_d = credits_to_send_q;
+      credit_state_d = credit_state_q;
+      credit_tx_pulse_d = credit_tx_pulse_q;
+
+      if (flow_control_fifo_ready_out & ~credit_out_inc_rise_q) begin 
+        credits_to_send_d++;
+      end
+
+      unique case(credit_state_d) 
+        CreditSendIdle: begin 
+          if(credits_to_send_d != '0) begin 
+            credits_to_send_d--;
+            credit_tx_pulse_d = ~credit_tx_pulse_q;
+            credit_state_d = CreditSendBusy;
+          end
+        end
+        CreditSendBusy: begin
+          if(credit_rtrn_rsp_sync == credit_tx_pulse_d)begin 
+            credit_state_d = CreditSendIdle;
+          end
+        end
+        default:;
+      endcase
+  end
+
+  assign credit_rtrn_req_o = credit_tx_pulse_d;
+
+  `FF(credit_out_inc_rise_q, flow_control_fifo_ready_out, 0)
+  `FF(credit_tx_pulse_q, credit_tx_pulse_d, 0)
+  `FF(credit_state_q, credit_state_d, CreditSendIdle)
+  `FF(credits_to_send_q, credits_to_send_d, '0)
+
+  ///////////////////////////
+  //   RECEIVING CREDITS   //
+  ///////////////////////////
+
+  sync #(
+    .STAGES(CreditsSyncStages),
+    .ResetValue(1'b0)
+  ) i_credit_req_sync(
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .serial_i(credit_rtrn_req_i),
+    .serial_o(credit_rtrn_req_sync)
+);
+
+  always_comb begin 
       credits_out_d = credits_out_q;
-      // The order of the two if blocks matter!
+      credit_rx_pulse_d = credit_rx_pulse_q;
       if (data_out_ready_i) begin
           credits_out_d--;
       end
-      if (credit_in_rise) begin
-          credits_out_d ++;
+      if (credit_rtrn_req_sync != credit_rx_pulse_d) begin
+          credits_out_d++;
+          credit_rx_pulse_d = ~credit_rx_pulse_q;
       end
+
   end
 
+ assign credit_rtrn_rsp_o = credit_rx_pulse_d;
+
+  `FF(credit_rx_pulse_q, credit_rx_pulse_d, 0)
   `FF(credits_out_q, credits_out_d, NumCredits)
 
   //////////////////
@@ -204,7 +272,7 @@ module slink_link_layer #(
   always_comb begin
     axis_in_rsp_o.tready = 1'b0;
     data_out_o = '0;
-    data_out_valid_o = '0;
+    data_out_valid= '0;
     link_out_index_d = link_out_index_q;
     link_state_d = link_state_q;
     raw_mode_fifo_pop = 1'b0;
@@ -212,7 +280,7 @@ module slink_link_layer #(
     if (cfg_raw_mode_en_i) begin
       // Raw mode
       if (cfg_raw_mode_out_en_i & ~raw_mode_fifo_empty) begin
-        data_out_valid_o = cfg_raw_mode_out_ch_mask_i;
+        data_out_valid = cfg_raw_mode_out_ch_mask_i;
         data_out_o = {{NumChannels}{raw_mode_fifo_data_out}};
         if (data_out_ready_i) begin
           raw_mode_fifo_pop = 1'b1;
@@ -220,12 +288,11 @@ module slink_link_layer #(
       end
     end else begin
       // Normal operating mode
-      begin if (credits_out_q != 0)
         unique case (link_state_q)
           LinkSendIdle: begin
             if (axis_in_req_i.tvalid) begin
               link_out_index_d = NumChannels * NumLanes * (1 + EnDdr);
-              data_out_valid_o = '1;
+              data_out_valid = '1;
               data_out_o = axis_in_req_i.t.data;
               if (data_out_ready_i) begin
                 link_state_d = LinkSendBusy;
@@ -237,8 +304,8 @@ module slink_link_layer #(
             end
           end
 
-          LinkSendBusy: begin
-            data_out_valid_o = '1;
+          LinkSendBusy: begin 
+            data_out_valid = '1;
             data_out_o = axis_in_req_i.t.data >> link_out_index_q;
             if (data_out_ready_i) begin
               link_out_index_d = link_out_index_q + NumChannels * NumLanes * (1 + EnDdr);
@@ -250,7 +317,6 @@ module slink_link_layer #(
           end
           default:;
         endcase
-      end
     end
   end
 
@@ -270,7 +336,7 @@ module slink_link_layer #(
     .data_o     ( raw_mode_fifo_data_out                  ),
     .pop_i      ( raw_mode_fifo_pop                       )
   );
-
+  assign data_out_valid_o = (credits_out_q != '0) ? data_out_valid : '0;
   assign cfg_raw_mode_out_data_fifo_is_full_o = raw_mode_fifo_full;
   assign raw_mode_fifo_push = cfg_raw_mode_out_data_valid_i & ~raw_mode_fifo_full;
   assign raw_mode_fifo_data_in = cfg_raw_mode_out_data_i;
