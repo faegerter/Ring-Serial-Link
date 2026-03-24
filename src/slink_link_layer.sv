@@ -24,7 +24,7 @@ module slink_link_layer #(
   parameter type credit_t  = logic,
   // For credit-based control flow
   parameter int NumCredits  = -1,
-  parameter int unsigned CreditsSyncStages = 2
+  parameter int CdcSyncStages = 2
 ) (
   input  logic                            clk_i,
   input  logic                            rst_ni,
@@ -55,10 +55,8 @@ module slink_link_layer #(
   output logic [Log2RawModeFifoDepth-1:0] cfg_raw_mode_out_data_fifo_fill_state_o,
   output logic                            cfg_raw_mode_out_data_fifo_is_full_o,
   // Credits
-  input  logic                            credit_rtrn_req_i,
-  input  logic                            credit_rtrn_rsp_i,
-  output logic                            credit_rtrn_req_o, 
-  output logic                            credit_rtrn_rsp_o
+  input  logic                            credit_recv_clk_i,
+  output logic                            credit_rtrn_clk_o
   );
 
   typedef enum logic [1:0] {LinkSendIdle, LinkSendBusy} link_state_e;
@@ -79,6 +77,7 @@ module slink_link_layer #(
 
   credit_t credits_out_q, credits_out_d;
   credit_t credits_to_send_q, credits_to_send_d;
+  logic credit_in_ready;
 
   logic [NumChannels-1:0] data_out_valid;
 
@@ -184,28 +183,14 @@ module slink_link_layer #(
   //   RETURNING(SENDING) CREDITS   //
   ////////////////////////////////////
 
-  logic credit_out_inc_rise_q;
-  logic credit_rtrn_rsp_sync;
-  logic credit_tx_pulse_q, credit_tx_pulse_d;
-  logic credit_rx_pulse_q, credit_rx_pulse_d;
-  
-  
-  sync #(
-    .STAGES(CreditsSyncStages),
-    .ResetValue(1'b0)
-  ) i_credit_rsp_sync(
-    .clk_i(clk_i),
-    .rst_ni(rst_ni),
-    .serial_i(credit_rtrn_rsp_i),
-    .serial_o(credit_rtrn_rsp_sync)
-);
 
-  always_comb begin
+
+    always_comb begin
       credits_to_send_d = credits_to_send_q;
       credit_state_d = credit_state_q;
-      credit_tx_pulse_d = credit_tx_pulse_q;
+      credit_rtrn_clk_o = 1'b0;
 
-      if (flow_control_fifo_ready_out & ~credit_out_inc_rise_q) begin 
+      if (flow_control_fifo_ready_out) begin 
         credits_to_send_d++;
       end
 
@@ -213,56 +198,57 @@ module slink_link_layer #(
         CreditSendIdle: begin 
           if(credits_to_send_d != '0) begin 
             credits_to_send_d--;
-            credit_tx_pulse_d = ~credit_tx_pulse_q;
+            credit_rtrn_clk_o = 1'b1;
             credit_state_d = CreditSendBusy;
           end
         end
         CreditSendBusy: begin
-          if(credit_rtrn_rsp_sync == credit_tx_pulse_d)begin 
-            credit_state_d = CreditSendIdle;
-          end
+          credit_state_d = CreditSendIdle;
         end
         default:;
       endcase
   end
 
-  assign credit_rtrn_req_o = credit_tx_pulse_d;
-
-  `FF(credit_out_inc_rise_q, flow_control_fifo_ready_out, 0)
-  `FF(credit_tx_pulse_q, credit_tx_pulse_d, 0)
   `FF(credit_state_q, credit_state_d, CreditSendIdle)
   `FF(credits_to_send_q, credits_to_send_d, '0)
+
 
   ///////////////////////////
   //   RECEIVING CREDITS   //
   ///////////////////////////
 
-  sync #(
-    .STAGES(CreditsSyncStages),
-    .ResetValue(1'b0)
-  ) i_credit_req_sync(
-    .clk_i(clk_i),
-    .rst_ni(rst_ni),
-    .serial_i(credit_rtrn_req_i),
-    .serial_o(credit_rtrn_req_sync)
+  cdc_fifo_gray #(
+    .WIDTH( 1 ),
+    .LOG_DEPTH    ( $clog2(NumCredits) + CdcSyncStages ),
+    .SYNC_STAGES  ( CdcSyncStages                      ) 
+  ) i_credit_recv_cdc_fifo_gray(
+    .src_clk_i   ( credit_recv_clk_i    ),
+    .src_rst_ni  ( rst_ni               ),
+    .src_data_i  ( 1'b1                 ),
+    .src_valid_i ( 1'b1                 ),
+    .src_ready_o (                      ),
+
+    .dst_clk_i   ( clk_i                ),
+    .dst_rst_ni  ( rst_ni               ),
+    .dst_data_o  (                      ),
+    .dst_valid_o ( credit_in            ),
+    .dst_ready_i ( credit_in_ready      )
 );
 
   always_comb begin 
       credits_out_d = credits_out_q;
-      credit_rx_pulse_d = credit_rx_pulse_q;
+      credit_in_ready = 1'b0;
       if (data_out_ready_i) begin
           credits_out_d--;
       end
-      if (credit_rtrn_req_sync != credit_rx_pulse_d) begin
+      if (credit_in) begin
           credits_out_d++;
-          credit_rx_pulse_d = ~credit_rx_pulse_q;
+          credit_in_ready = 1'b1;
       end
 
   end
 
- assign credit_rtrn_rsp_o = credit_rx_pulse_d;
 
-  `FF(credit_rx_pulse_q, credit_rx_pulse_d, 0)
   `FF(credits_out_q, credits_out_d, NumCredits)
 
   //////////////////
