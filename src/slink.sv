@@ -45,10 +45,8 @@ module slink
     output logic [NumChannels-1:0]    ddr_rcv_clk_o,
     input  logic [NumChannels-1:0][NumLanes-1:0] ddr_i,
     output logic [NumChannels-1:0][NumLanes-1:0] ddr_o,
-    input  logic                      credit_rtrn_req_i,
-    input  logic                      credit_rtrn_rsp_i,
-    output logic                      credit_rtrn_req_o, 
-    output logic                      credit_rtrn_rsp_o 
+    input  logic                      credit_recv_clk_i,
+    output logic                      credit_rtrn_clk_o
 );
 
     localparam int unsigned NumBitsPerCycle = NumLanes * (1 + EnDdr);
@@ -212,10 +210,8 @@ module slink
         .cfg_raw_mode_out_data_fifo_clear_i      ( cfg_raw_mode_out_data_fifo_clear                 ),
         .cfg_raw_mode_out_data_fifo_fill_state_o ( raw_mode_out_data_fill_state ),
         .cfg_raw_mode_out_data_fifo_is_full_o    ( raw_mode_out_data_is_full ),
-        .credit_rtrn_req_i                       ( credit_rtrn_req_i                                ),
-        .credit_rtrn_rsp_i                       ( credit_rtrn_rsp_i                                ),
-        .credit_rtrn_req_o                       ( credit_rtrn_req_o                                ),
-        .credit_rtrn_rsp_o                       ( credit_rtrn_rsp_o                                )
+        .credit_recv_clk_i                       ( credit_recv_clk_i                                ),
+        .credit_rtrn_clk_o                       ( credit_rtrn_clk_o                                )
     );
 
 

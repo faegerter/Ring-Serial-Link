@@ -95,8 +95,7 @@ module tb_obi_slink;
     // link
     wire [NumChannels*NumLanes-1:0] ddr_o;
     wire [NumChannels*NumLanes-1:0] ddr_i;
-    wire credit_rtrn_req_1, credit_rtrn_req_2;
-    wire credit_rtrn_rsp_1, credit_rtrn_rsp_2;
+    wire credit_recv_clk_i, credit_rtrn_clk_o;
 
     // clock and reset
     logic clk_1, clk_2;
@@ -129,23 +128,21 @@ module tb_obi_slink;
         .a_optional_t    ( obi_a_optional_t ),
         .r_optional_t    ( obi_r_optional_t )
     ) i_serial_link_1 (
-        .clk_i         ( clk_1           ),
-        .rst_ni        ( rst_1_n         ),
-        .testmode_i    ( 1'b0            ),
-        .obi_in_req_i  ( obi_in_req_1    ),
-        .obi_in_rsp_o  ( obi_in_rsp_1    ),
-        .obi_out_req_o ( obi_out_req_1   ),
-        .obi_out_rsp_i ( obi_out_rsp_1   ),
-        .obi_reg_req_i ( obi_reg_req_1   ),
-        .obi_reg_rsp_o ( obi_reg_rsp_1   ),
-        .ddr_rcv_clk_i ( ddr_rcv_clk_2   ),
-        .ddr_rcv_clk_o ( ddr_rcv_clk_1   ),
-        .ddr_i         ( ddr_i           ),
-        .ddr_o         ( ddr_o           ),
-        .credit_rtrn_req_i ( credit_rtrn_req_2  ),
-        .credit_rtrn_rsp_i ( credit_rtrn_rsp_1  ),
-        .credit_rtrn_req_o ( credit_rtrn_req_1  ),
-        .credit_rtrn_rsp_o ( credit_rtrn_rsp_2  )
+        .clk_i             ( clk_1              ),
+        .rst_ni            ( rst_1_n            ),
+        .testmode_i        ( 1'b0               ),
+        .obi_in_req_i      ( obi_in_req_1       ),
+        .obi_in_rsp_o      ( obi_in_rsp_1       ),
+        .obi_out_req_o     ( obi_out_req_1      ),
+        .obi_out_rsp_i     ( obi_out_rsp_1      ),
+        .obi_reg_req_i     ( obi_reg_req_1      ),
+        .obi_reg_rsp_o     ( obi_reg_rsp_1      ),
+        .ddr_rcv_clk_i     ( ddr_rcv_clk_2      ),
+        .ddr_rcv_clk_o     ( ddr_rcv_clk_1      ),
+        .ddr_i             ( ddr_i              ),
+        .ddr_o             ( ddr_o              ),
+        .credit_recv_clk_i ( credit_recv_clk_i  ),
+        .credit_rtrn_clk_o ( credit_rtrn_clk_o  )
     );
 
     // second serial instance
@@ -158,23 +155,21 @@ module tb_obi_slink;
         .a_optional_t    ( obi_a_optional_t ),
         .r_optional_t    ( obi_r_optional_t )
     ) i_serial_link_2 (
-        .clk_i         ( clk_2           ),
-        .rst_ni        ( rst_2_n         ),
-        .testmode_i    ( 1'b0            ),
-        .obi_in_req_i  ( obi_in_req_2    ),
-        .obi_in_rsp_o  ( obi_in_rsp_2    ),
-        .obi_out_req_o ( obi_out_req_2   ),
-        .obi_out_rsp_i ( obi_out_rsp_2   ),
-        .obi_reg_req_i ( obi_reg_req_2   ),
-        .obi_reg_rsp_o ( obi_reg_rsp_2   ),
-        .ddr_rcv_clk_i ( ddr_rcv_clk_1   ),
-        .ddr_rcv_clk_o ( ddr_rcv_clk_2   ),
-        .ddr_i         ( ddr_o           ),
-        .ddr_o         ( ddr_i           ),
-        .credit_rtrn_req_i  ( credit_rtrn_req_1   ),
-        .credit_rtrn_rsp_i  ( credit_rtrn_rsp_2   ),
-        .credit_rtrn_req_o  ( credit_rtrn_req_2   ),
-        .credit_rtrn_rsp_o  ( credit_rtrn_rsp_1   )
+        .clk_i             ( clk_2              ),
+        .rst_ni            ( rst_2_n            ),
+        .testmode_i        ( 1'b0               ),
+        .obi_in_req_i      ( obi_in_req_2       ),
+        .obi_in_rsp_o      ( obi_in_rsp_2       ),
+        .obi_out_req_o     ( obi_out_req_2      ),
+        .obi_out_rsp_i     ( obi_out_rsp_2      ),
+        .obi_reg_req_i     ( obi_reg_req_2      ),
+        .obi_reg_rsp_o     ( obi_reg_rsp_2      ),
+        .ddr_rcv_clk_i     ( ddr_rcv_clk_1      ),
+        .ddr_rcv_clk_o     ( ddr_rcv_clk_2      ),
+        .ddr_i             ( ddr_o              ),
+        .ddr_o             ( ddr_i              ),
+        .credit_recv_clk_i ( credit_rtrn_clk_o  ),
+        .credit_rtrn_clk_o ( credit_recv_clk_i  )
     );
 
     // OBI DV interfaces
