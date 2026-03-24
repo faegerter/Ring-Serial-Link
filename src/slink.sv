@@ -13,18 +13,24 @@
 `include "common_cells/assertions.svh"
 `include "axi_stream/typedef.svh"
 `include "rdl_assign.svh"
+`include "include/slink_obi_macros.svh"
+
+
 
 /// A simple serial link to go off-chip
 module slink
     import slink_reg_pkg::*;
-#(
+#(  
+    parameter obi_pkg::obi_cfg_t ObiCfg = obi_pkg::ObiDefaultConfig,
     //Size of the RecvFfifo Buffer in payloads
     parameter int RecvFifoPayloadDepfth = 8,
     parameter int ObiAddrWidth      = 32,
     parameter type obi_req_t  = logic,
     parameter type obi_rsp_t  = logic,
     parameter type a_chan_t   = logic,
-    parameter type r_chan_t   = logic
+    parameter type r_chan_t   = logic,
+    parameter type a_optional_t   = logic,
+    parameter type r_optional_t   = logic
 ) (
     input  logic                      clk_i,
     input  logic                      rst_ni,
@@ -49,7 +55,10 @@ module slink
     localparam int unsigned RawModeFifoDepth = 2**Log2RawModeTXFifoDepth;
     localparam int unsigned MaxClkDiv = 2**Log2MaxClkDiv;
 
- 
+
+    `SLINK_TYPEDEF_ALL(ObiCfg, a_optional_t, r_optional_t)
+
+    `include "include/slink_obi_functions.svh"
 
     // Determine the largest sized OBI channel
     localparam int ObiChannels[2] = {$bits(a_chan_t),

@@ -121,10 +121,13 @@ module tb_obi_slink;
 
     // first serial instance
     slink #(
-        .obi_req_t       ( obi_req_t       ),
-        .obi_rsp_t       ( obi_rsp_t       ),
-        .a_chan_t        ( obi_a_chan_t    ),
-        .r_chan_t        ( obi_r_chan_t    )
+        .ObiCfg (ObiCfg),
+        .obi_req_t       ( obi_req_t        ),
+        .obi_rsp_t       ( obi_rsp_t        ),
+        .a_chan_t        ( obi_a_chan_t     ),
+        .r_chan_t        ( obi_r_chan_t     ),
+        .a_optional_t    ( obi_a_optional_t ),
+        .r_optional_t    ( obi_r_optional_t )
     ) i_serial_link_1 (
         .clk_i         ( clk_1           ),
         .rst_ni        ( rst_1_n         ),
@@ -147,10 +150,13 @@ module tb_obi_slink;
 
     // second serial instance
     slink #(
-        .obi_req_t       ( obi_req_t       ),
-        .obi_rsp_t       ( obi_rsp_t       ),
-        .a_chan_t        ( obi_a_chan_t    ),
-        .r_chan_t        ( obi_r_chan_t    )
+        .ObiCfg (ObiCfg),
+        .obi_req_t       ( obi_req_t        ),
+        .obi_rsp_t       ( obi_rsp_t        ),
+        .a_chan_t        ( obi_a_chan_t     ),
+        .r_chan_t        ( obi_r_chan_t     ),
+        .a_optional_t    ( obi_a_optional_t ),
+        .r_optional_t    ( obi_r_optional_t )
     ) i_serial_link_2 (
         .clk_i         ( clk_2           ),
         .rst_ni        ( rst_2_n         ),
