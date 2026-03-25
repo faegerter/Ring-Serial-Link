@@ -20,7 +20,6 @@
 module slink
     import slink_reg_pkg::*;
 #(  
-    parameter obi_pkg::obi_cfg_t ObiCfg = obi_pkg::ObiDefaultConfig,
     //Size of the RecvFfifo Buffer in payloads
     parameter int RecvFifoPayloadDepfth = 8,
     parameter int ObiAddrWidth      = 32,
@@ -33,7 +32,8 @@ module slink
     parameter type a_chan_write_t   = logic,
     parameter type a_chan_read_t    = logic,
     parameter type r_chan_write_t   = logic,
-    parameter type r_chan_read_t    = logic
+    parameter type r_chan_read_t    = logic,
+    parameter type stream_cfg_t     = logic
 ) (
     input  logic                      clk_i,
     input  logic                      rst_ni,

@@ -21,4 +21,26 @@ package slink_pkg;
     return max_value;
   endfunction
 
+  typedef struct packed {                                                                                     
+  int unsigned          AddrWidth;
+  int unsigned          DataWidth;
+  int unsigned          RDataWidth;
+  int unsigned          IDWidth;
+  bit                   UseByteEnable;                                                                              
+  bit                   UseOptional;
+  } slink_obi_cfg_t;
+
+
+
+  function automatic slink_obi_cfg_t slink_obi_cfg(int unsigned AddrWidth, int unsigned DataWidth, int unsigned RDataWidth, int unsigned IDWidth, bit UseByteEnable = 1, bit UseOptional = 0);
+    slink_obi_cfg = '{
+      AddrWidth:       AddrWidth,
+      DataWidth:       DataWidth,
+      RDataWidth:      RDataWidth,
+      IDWidth:         IDWidth,
+      UseByteEnable:   UseByteEnable,
+      UseOptional:     UseOptional
+    };
+  endfunction
+
 endpackage : slink_pkg

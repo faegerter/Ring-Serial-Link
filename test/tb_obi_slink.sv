@@ -43,6 +43,7 @@
 module tb_obi_slink;
 
     import slink_reg_pkg::*;
+    import slink_pkg::*;
     import obi_pkg::*;
     import obi_test_fix_pkg::*;
 
@@ -70,15 +71,19 @@ module tb_obi_slink;
     localparam int unsigned RegDataWidth    = 32;
     localparam int unsigned RegStrbWidth    = RegDataWidth / 8;
 
+    localparam bit          UseByteEnable   = 1;
+    localparam bit          UseOptional     = 1;
+
     // ==============
-    //    DDR Link
+    //    DDR Links
     // ==============
 
     // OBI configuration and types
     localparam obi_cfg_t ObiCfg = obi_default_cfg(ObiAddrWidth, ObiDataWidth, ObiIdWidth, ObiMinimalOptionalConfig);
+    localparam slink_obi_cfg_t SlinkObiCfg = slink_obi_cfg(ObiAddrWidth, ObiDataWidth, ObiDataWidth, ObiIdWidth, UseByteEnable, UseOptional);
 
     `OBI_TYPEDEF_DEFAULT_ALL(obi, ObiCfg)
-    `SLINK_OBI_TYPEDEF_DEFAULT(slink_obi, ObiCfg) 
+    `SLINK_OBI_TYPEDEF_DEFAULT(slink_obi, SlinkObiCfg) 
 
     typedef logic [ObiIdWidth-1:0]    obi_id_t;
     typedef logic [RegAddrWidth-1:0]  cfg_addr_t;
@@ -122,7 +127,6 @@ module tb_obi_slink;
 
     // first serial instance
     slink #(
-        .ObiCfg (ObiCfg),
         .obi_req_t       ( obi_req_t        ),
         .obi_rsp_t       ( obi_rsp_t        ),
         .a_chan_t        ( obi_a_chan_t     ),
@@ -132,7 +136,8 @@ module tb_obi_slink;
         .a_chan_write_t  ( slink_obi_a_chan_write_t   ),
         .a_chan_read_t   ( slink_obi_a_chan_read_t    ),
         .r_chan_write_t  ( slink_obi_r_chan_write_t   ),
-        .r_chan_read_t   ( slink_obi_r_chan_read_t    )
+        .r_chan_read_t   ( slink_obi_r_chan_read_t    ),
+        .stream_cfg_t    ( slink_obi_cfg_t            )
     ) i_serial_link_1 (
         .clk_i             ( clk_1              ),
         .rst_ni            ( rst_1_n            ),
@@ -153,7 +158,6 @@ module tb_obi_slink;
 
     // second serial instance
     slink #(
-        .ObiCfg (ObiCfg),
         .obi_req_t       ( obi_req_t        ),
         .obi_rsp_t       ( obi_rsp_t        ),
         .a_chan_t        ( obi_a_chan_t     ),
@@ -163,7 +167,8 @@ module tb_obi_slink;
         .a_chan_write_t  ( slink_obi_a_chan_write_t   ),
         .a_chan_read_t   ( slink_obi_a_chan_read_t    ),
         .r_chan_write_t  ( slink_obi_r_chan_write_t   ),
-        .r_chan_read_t   ( slink_obi_r_chan_read_t    )
+        .r_chan_read_t   ( slink_obi_r_chan_read_t    ),
+        .stream_cfg_t    ( slink_obi_cfg_t            )
     ) i_serial_link_2 (
         .clk_i             ( clk_2              ),
         .rst_ni            ( rst_2_n            ),

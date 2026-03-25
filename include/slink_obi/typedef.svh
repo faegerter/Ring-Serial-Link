@@ -85,20 +85,21 @@
   } r_chan_write_t;
 
 
+
 `define SLINK_OBI_TYPEDEF_ALL(slink_obi_t, cfg, a_optional_t, r_optional_t)                                                                            \
-  `SLINK_OBI_TYPEDEF_ALL_A_CHAN_T(slink_obi_t``_a_chan_read_t, slink_obi_t``_a_chan_write_t, cfg.AddrWidth, cfg.DataWidth, cfg.IdWidth, a_optional_t)  \
-  `SLINK_OBI_TYPEDEF_ALL_R_CHAN_T(slink_obi_t``_r_chan_read_t, slink_obi_t``_r_chan_write_t, cfg.DataWidth, cfg.IdWidth, r_optional_t)     
+  `SLINK_OBI_TYPEDEF_ALL_A_CHAN_T(slink_obi_t``_a_chan_read_t, slink_obi_t``_a_chan_write_t, cfg.AddrWidth, cfg.DataWidth, cfg.IDWidth, a_optional_t)  \
+  `SLINK_OBI_TYPEDEF_ALL_R_CHAN_T(slink_obi_t``_r_chan_read_t, slink_obi_t``_r_chan_write_t, cfg.DataWidth, cfg.IDWidth, r_optional_t)                 
 
 `define SLINK_OBI_TYPEDEF_DEFAULT(slink_obi_t, cfg)                                                                                          \
-  `SLINK_OBI_TYPEDEF_DEFAULT_A_CHAN_T(slink_obi_t``_a_chan_read_t, slink_obi_t``_a_chan_write_t, cfg.AddrWidth, cfg.DataWidth, cfg.IdWidth)  \
-  `SLINK_OBI_TYPEDEF_DEFAULT_R_CHAN_T(slink_obi_t``_r_chan_read_t, slink_obi_t``_r_chan_write_t, cfg.DataWidth, cfg.IdWidth)     
+  `SLINK_OBI_TYPEDEF_DEFAULT_A_CHAN_T(slink_obi_t``_a_chan_read_t, slink_obi_t``_a_chan_write_t, cfg.AddrWidth, cfg.DataWidth, cfg.IDWidth)  \
+  `SLINK_OBI_TYPEDEF_DEFAULT_R_CHAN_T(slink_obi_t``_r_chan_read_t, slink_obi_t``_r_chan_write_t, cfg.DataWidth, cfg.IDWidth)                  
 
 `define SLINK_OBI_TYPEDEF_NOBE(slink_obi_t, cfg)                                                                                          \
-  `SLINK_OBI_TYPEDEF_NOBE_A_CHAN_T(slink_obi_t``_a_chan_read_t, slink_obi_t``_a_chan_write_t, cfg.AddrWidth, cfg.DataWidth, cfg.IdWidth)  \
-  `SLINK_OBI_TYPEDEF_DEFAULT_R_CHAN_T(slink_obi_t``_r_chan_read_t, slink_obi_t``_r_chan_write_t, cfg.DataWidth, cfg.IdWidth)     
+  `SLINK_OBI_TYPEDEF_NOBE_A_CHAN_T(slink_obi_t``_a_chan_read_t, slink_obi_t``_a_chan_write_t, cfg.AddrWidth, cfg.DataWidth, cfg.IDWidth)  \
+  `SLINK_OBI_TYPEDEF_DEFAULT_R_CHAN_T(slink_obi_t``_r_chan_read_t, slink_obi_t``_r_chan_write_t, cfg.DataWidth, cfg.IDWidth)              
 
 `define SLINK_OBI_TYPEDEF_NOBE_OPTIONAL(slink_obi_t, cfg, a_optional_t, r_optional_t)                                                                            \
-  `SLINK_OBI_TYPEDEF_NOBE_OPTIONAL_A_CHAN_T(slink_obi_t``_a_chan_read_t, slink_obi_t``_a_chan_write_t, cfg.AddrWidth, cfg.DataWidth, cfg.IdWidth, a_optional_t)  \
-  `SLINK_OBI_TYPEDEF_ALL_R_CHAN_T(slink_obi_t``_r_chan_read_t, slink_obi_t``_r_chan_write_t, cfg.DataWidth, cfg.IdWidth, r_optional_t)    
+  `SLINK_OBI_TYPEDEF_NOBE_OPTIONAL_A_CHAN_T(slink_obi_t``_a_chan_read_t, slink_obi_t``_a_chan_write_t, cfg.AddrWidth, cfg.DataWidth, cfg.IDWidth, a_optional_t)  \
+  `SLINK_OBI_TYPEDEF_ALL_R_CHAN_T(slink_obi_t``_r_chan_read_t, slink_obi_t``_r_chan_write_t, cfg.DataWidth, cfg.IDWidth, r_optional_t)                           
 
 `endif // SLINK_OBI_TYPEDEF_SVH
