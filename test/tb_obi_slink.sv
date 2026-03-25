@@ -50,6 +50,7 @@ module tb_obi_slink;
     `include "obi/assign.svh"
 
     `include "slink_addrmap.svh"
+    `include "../include/slink_obi/typedef.svh"
 
     // ==============
     //    Config
@@ -77,6 +78,7 @@ module tb_obi_slink;
     localparam obi_cfg_t ObiCfg = obi_default_cfg(ObiAddrWidth, ObiDataWidth, ObiIdWidth, ObiMinimalOptionalConfig);
 
     `OBI_TYPEDEF_DEFAULT_ALL(obi, ObiCfg)
+    `SLINK_OBI_TYPEDEF_DEFAULT(slink_obi, ObiCfg) 
 
     typedef logic [ObiIdWidth-1:0]    obi_id_t;
     typedef logic [RegAddrWidth-1:0]  cfg_addr_t;
@@ -126,7 +128,11 @@ module tb_obi_slink;
         .a_chan_t        ( obi_a_chan_t     ),
         .r_chan_t        ( obi_r_chan_t     ),
         .a_optional_t    ( obi_a_optional_t ),
-        .r_optional_t    ( obi_r_optional_t )
+        .r_optional_t    ( obi_r_optional_t ),
+        .a_chan_write_t  ( slink_obi_a_chan_write_t   ),
+        .a_chan_read_t   ( slink_obi_a_chan_read_t    ),
+        .r_chan_write_t  ( slink_obi_r_chan_write_t   ),
+        .r_chan_read_t   ( slink_obi_r_chan_read_t    )
     ) i_serial_link_1 (
         .clk_i             ( clk_1              ),
         .rst_ni            ( rst_1_n            ),
@@ -153,7 +159,11 @@ module tb_obi_slink;
         .a_chan_t        ( obi_a_chan_t     ),
         .r_chan_t        ( obi_r_chan_t     ),
         .a_optional_t    ( obi_a_optional_t ),
-        .r_optional_t    ( obi_r_optional_t )
+        .r_optional_t    ( obi_r_optional_t ),
+        .a_chan_write_t  ( slink_obi_a_chan_write_t   ),
+        .a_chan_read_t   ( slink_obi_a_chan_read_t    ),
+        .r_chan_write_t  ( slink_obi_r_chan_write_t   ),
+        .r_chan_read_t   ( slink_obi_r_chan_read_t    )
     ) i_serial_link_2 (
         .clk_i             ( clk_2              ),
         .rst_ni            ( rst_2_n            ),

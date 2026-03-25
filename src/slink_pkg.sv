@@ -13,9 +13,9 @@ package slink_pkg;
     TagR    = 2'd2
   } tag_e;
 
-  function automatic int find_max_channel(input int channel[2]);
+  function automatic int find_max_channel(input int channel[4]);
     int max_value = 0;
-    for (int i = 0; i < 2; i++) begin
+    for (int i = 0; i < 4; i++) begin
       if (max_value < channel[i]) max_value = channel[i];
     end
     return max_value;
