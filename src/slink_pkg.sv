@@ -13,6 +13,22 @@ package slink_pkg;
     TagR    = 2'd2
   } tag_e;
 
+  typedef enum logic [2:0]  {
+    RxNone      = 3'd0,
+    RxTransit   = 3'd1,
+    RxIncomingA = 3'd2,
+    RxIncomingR = 3'd3,
+    RxLoop      = 3'd4,
+    RxError     = 3'd5
+  } rx_e;
+
+  typedef enum logic [1:0]  {
+    TxNone      = 2'd0,
+    TxTransit   = 2'd1,
+    TxOutgoingA = 2'd2,
+    TxOutgoingR = 2'd3
+  } tx_e;
+
   function automatic int find_max_channel(input int channel[2]);
     int max_value = 0;
     for (int i = 0; i < 2; i++) begin

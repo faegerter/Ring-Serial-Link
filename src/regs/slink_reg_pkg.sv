@@ -14,6 +14,7 @@ package slink_reg_pkg;
     localparam NumLanes = 'h8;
     localparam EnDdr = 'h1;
     localparam NumBits = 'h10;
+    localparam Log2MaxNodeIds = 'h4;
     localparam Log2MaxClkDiv = 'ha;
     localparam FlushCounterWidth = 'h8;
     localparam Log2RawModeTXFifoDepth = 'h3;
@@ -85,6 +86,14 @@ package slink_reg_pkg;
         slink_reg__channel_alloc_tx_ctrl__external__in_t channel_alloc_tx_ctrl;
         slink_reg__channel_alloc_rx_ctrl__external__in_t channel_alloc_rx_ctrl;
     } slink_reg__in_t;
+
+    typedef struct {
+        logic [3:0] value;
+    } slink_reg__node_id__node_id__out_t;
+
+    typedef struct {
+        slink_reg__node_id__node_id__out_t node_id;
+    } slink_reg__node_id__out_t;
 
     typedef struct {
         logic value;
@@ -253,6 +262,7 @@ package slink_reg_pkg;
     } slink_reg__channel_alloc_rx_ch_en__out_t;
 
     typedef struct {
+        slink_reg__node_id__out_t node_id;
         slink_reg__raw_mode_en__out_t raw_mode_en;
         slink_reg__raw_mode_in_data__external__out_t raw_mode_in_data;
         slink_reg__raw_mode_in_ch_sel__out_t raw_mode_in_ch_sel;

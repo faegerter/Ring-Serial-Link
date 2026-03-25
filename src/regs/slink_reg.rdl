@@ -14,6 +14,7 @@ addrmap slink_reg #(
     longint unsigned NumLanes = 8,
     longint unsigned EnDdr = 1,
     longint unsigned NumBits = (1+EnDdr)*NumLanes,
+    longint unsigned Log2MaxNodeIds = 4,
     longint unsigned Log2MaxClkDiv = 10,
     longint unsigned FlushCounterWidth = 8,
     longint unsigned Log2RawModeTXFifoDepth = 3, // 8 entries
@@ -21,6 +22,17 @@ addrmap slink_reg #(
 ) {
 
     default regwidth = 32;
+
+    // TODO: Improve this
+    reg node_id {
+        default sw = rw;
+        default hw = r;
+        desc = "Defines ID of the IP";
+        field {
+            name = "node_id";
+            desc = "ID of the slink IP in the ring";
+        } node_id[Log2MaxNodeIds-1:0] = 0x0;
+    };
 
     reg tx_phy_clk_div {
         default sw = rw;
@@ -216,13 +228,14 @@ addrmap slink_reg #(
     };
 
 
-             raw_mode_en                 raw_mode_en @0x0;
-    external raw_mode_in_data            raw_mode_in_data @0x04;
-             raw_mode_in_ch_sel          raw_mode_in_ch_sel @0x08;
-             raw_mode_out_data_fifo      raw_mode_out_data_fifo @0x0c;
-    external raw_mode_out_data_fifo_ctrl raw_mode_out_data_fifo_ctrl @0x10;
-             raw_mode_out_en             raw_mode_out_en @0x14;
-    external flow_control_fifo_clear     flow_control_fifo_clear @0x18;
+             node_id                     node_id @0x0;
+             raw_mode_en                 raw_mode_en @0x4;
+    external raw_mode_in_data            raw_mode_in_data @0x08;
+             raw_mode_in_ch_sel          raw_mode_in_ch_sel @0x0c;
+             raw_mode_out_data_fifo      raw_mode_out_data_fifo @0x10;
+    external raw_mode_out_data_fifo_ctrl raw_mode_out_data_fifo_ctrl @0x14;
+             raw_mode_out_en             raw_mode_out_en @0x18;
+    external flow_control_fifo_clear     flow_control_fifo_clear @0x1c;
     external raw_mode_in_data_valid      raw_mode_in_data_valid[NumChannels] @0x100;
              raw_mode_out_ch_mask        raw_mode_out_ch_mask[NumChannels] @0x200;
              tx_phy_clk_div              tx_phy_clk_div[NumChannels] @0x300;
