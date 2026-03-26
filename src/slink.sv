@@ -68,8 +68,10 @@ module slink
     // 1) OBI Beat
     // 2) Header
     typedef struct packed {
-        logic [MaxObiChannelBits-1:0] obi_ch;
         slink_pkg::tag_e hdr;
+        logic [3:0] dst_id;
+        logic [3:0] src_id;
+        logic [MaxObiChannelBits-1:0] obi_ch;
     } payload_t;
 
     localparam int BandWidth = NumChannels * NumBitsPerCycle; // doubled BW if DDR enabled
@@ -140,6 +142,7 @@ module slink
     ) i_serial_link_protocol (
         .clk_i          ( clk_i        ),
         .rst_ni         ( rst_ni       ),
+        .node_id_i      ( reg2hw.node_id.node_id.value ),
         .obi_in_req_i   ( obi_in_req_i    ),
         .obi_in_rsp_o   ( obi_in_rsp_o    ),
         .obi_out_req_o  ( obi_out_req_o   ),
