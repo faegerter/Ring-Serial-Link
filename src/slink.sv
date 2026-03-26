@@ -77,6 +77,13 @@ module slink
     localparam int RecvFifoDepth = RecvFifoPayloadDepfth * PayloadSplits;
     localparam int unsigned NumCredits = RecvFifoDepth;
     
+    localparam int PayloadHeaderSize = $bits(payload_t) - MaxObiChannelBits;
+    localparam int AChannelWritePayloadSize = $bits(a_chan_write_t) + PayloadHeaderSize;
+    localparam int AChannelReadPayloadSize  = $bits(a_chan_read_t) + PayloadHeaderSize;
+    localparam int RChannelWritePayloadSize = $bits(r_chan_write_t) + PayloadHeaderSize;
+    localparam int RChannelReadPayloadSize  = $bits(r_chan_read_t) + PayloadHeaderSize;
+
+
     typedef logic [$clog2(NumCredits):0] credit_t;
     typedef logic [NumBitsPerCycle-1:0] phy_data_t;
 
@@ -182,10 +189,15 @@ module slink
         .PayloadSplits    ( PayloadSplits     ),
         .EnDdr            ( EnDdr             ),
         .credit_t         ( credit_t          ),
-        .NumCredits       ( NumCredits        )
+        .NumCredits       ( NumCredits        ),
+        .AChannelWritePayloadSize (AChannelWritePayloadSize ),
+        .AChannelReadPayloadSize  (AChannelReadPayloadSize  ),
+        .RChannelWritePayloadSize (RChannelWritePayloadSize ),
+        .RChannelReadPayloadSize  (RChannelReadPayloadSize  ),
+        .BandWidth                (BandWidth)
     ) i_serial_link_data_link (
         .clk_i                                   ( clk_i                                            ),
-        .rst_ni                                  ( rst_ni                                        ),
+        .rst_ni                                  ( rst_ni                                           ),
         .axis_in_req_i                           ( axis_out_req                                     ),
         .axis_in_rsp_o                           ( axis_out_rsp                                     ),
         .axis_out_req_o                          ( axis_in_req                                      ),

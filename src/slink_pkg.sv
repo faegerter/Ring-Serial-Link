@@ -7,10 +7,14 @@
 /// A simple package for common serial link types and functions
 package slink_pkg;
 
-  typedef enum logic [1:0]  {
-    TagIdle = 2'd0,
-    TagA    = 2'd1,
-    TagR    = 2'd2
+  typedef enum logic [2:0]  {
+    TagAWrite    = 3'd0,
+    TagARead     = 3'd1,
+    TagRWrite    = 3'd2,
+    TagRRead     = 3'd3,
+    TagA         = 3'd4,
+    TagR         = 3'd5,
+    TagIdle      = 3'd6
   } tag_e;
 
   function automatic int find_max_channel(input int channel[4]);

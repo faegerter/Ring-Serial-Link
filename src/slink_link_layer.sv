@@ -24,7 +24,12 @@ module slink_link_layer #(
   parameter type credit_t  = logic,
   // For credit-based control flow
   parameter int NumCredits  = -1,
-  parameter int CdcSyncStages = 2
+  parameter int CdcSyncStages = 2,
+  parameter int AChannelWritePayloadSize = -1,
+  parameter int AChannelReadPayloadSize = -1,
+  parameter int RChannelWritePayloadSize = -1,
+  parameter int RChannelReadPayloadSize = -1,
+  parameter int BandWidth = -1
 ) (
   input  logic                            clk_i,
   input  logic                            rst_ni,
@@ -59,6 +64,11 @@ module slink_link_layer #(
   output logic                            credit_rtrn_clk_o
   );
 
+  localparam int AChannelWritePayloadSplits = (AChannelWritePayloadSize + BandWidth - 1)/BandWidth;
+  localparam int AChannelReadPayloadSplits  = (AChannelReadPayloadSize + BandWidth - 1)/BandWidth;
+  localparam int RChannelWritePayloadSplits = (RChannelWritePayloadSize + BandWidth - 1)/BandWidth;
+  localparam int RChannelReadPayloadSplits  = (RChannelReadPayloadSize + BandWidth - 1)/BandWidth;
+
   typedef enum logic [1:0] {LinkSendIdle, LinkSendBusy} link_state_e;
   typedef enum logic [1:0] {CreditSendIdle, CreditSendBusy} credit_state_e;
 
@@ -66,10 +76,12 @@ module slink_link_layer #(
   logic [PayloadSplits-1:0] recv_reg_out_valid, recv_reg_out_ready;
   phy_data_t [PayloadSplits-1:0][NumChannels-1:0] recv_reg_data;
   logic [$clog2(PayloadSplits)-1:0] recv_reg_index_q, recv_reg_index_d;
+  logic [$clog2(PayloadSplits)-1:0] recv_reg_payload_size_q, recv_reg_payload_size_d;
 
   credit_state_e credit_state_q, credit_state_d;
   link_state_e link_state_q, link_state_d;
   logic [$clog2(PayloadSplits*NumChannels*NumLanes*(1+EnDdr)):0] link_out_index_q, link_out_index_d;
+  logic [$clog2(PayloadSplits*NumChannels*NumLanes*(1+EnDdr)):0] link_out_payload_size_q, link_out_payload_size_d;
 
   logic raw_mode_fifo_full, raw_mode_fifo_empty;
   logic raw_mode_fifo_push, raw_mode_fifo_pop;
@@ -130,8 +142,9 @@ module slink_link_layer #(
     recv_reg_in_valid = '0;
     data_in_ready_o = '0;
     recv_reg_index_d = recv_reg_index_q;
+    recv_reg_payload_size_d = recv_reg_payload_size_q;
     axis_out_req_o.tvalid = 1'b0;
-    axis_out_req_o.t.data = recv_reg_data;
+    axis_out_req_o.t.data = {'0, recv_reg_data[recv_reg_payload_size_d-1:0]};
     recv_reg_out_ready = '0;
     cfg_raw_mode_in_data_o = '0;
     cfg_raw_mode_in_data_valid_o = '0;
@@ -160,18 +173,27 @@ module slink_link_layer #(
       data_in_ready_o = {NumChannels{flow_control_fifo_valid_in & flow_control_fifo_ready_in}};
       // Pop from Fifo and assemble in register
       if (flow_control_fifo_valid_out & recv_reg_in_ready[recv_reg_index_q]) begin
+        if(recv_reg_index_q == 0)begin 
+          unique case(slink_pkg::tag_e'(flow_control_fifo_data_out[2:0]))
+            slink_pkg::TagAWrite:  recv_reg_payload_size_d = AChannelWritePayloadSplits;
+            slink_pkg::TagARead:   recv_reg_payload_size_d = AChannelReadPayloadSplits; 
+            slink_pkg::TagRWrite:  recv_reg_payload_size_d = RChannelWritePayloadSplits;
+            slink_pkg::TagRRead:   recv_reg_payload_size_d = RChannelReadPayloadSplits; 
+            default:    recv_reg_payload_size_d = 1;
+          endcase
+        end
         recv_reg_in_valid[recv_reg_index_q] = 1'b1;
         flow_control_fifo_ready_out = 1'b1;
         // Increment recv reg counter
-        recv_reg_index_d = (recv_reg_index_q == PayloadSplits - 1)? 0 : recv_reg_index_q + 1;
+        recv_reg_index_d = (recv_reg_index_q == recv_reg_payload_size_d - 1)? 0 : recv_reg_index_q + 1;
       end
-
       // Once all Recv Stream Registers are filled -> generate AXI stream request
       axis_out_req_o.tvalid = &recv_reg_out_valid;
       recv_reg_out_ready = {PayloadSplits{axis_out_rsp_i.tready}};
     end
   end
 
+  `FF(recv_reg_payload_size_q, recv_reg_payload_size_d, '0)
   `FF(recv_reg_index_q, recv_reg_index_d, '0)
 
   //////////////////////
@@ -262,7 +284,7 @@ module slink_link_layer #(
     link_out_index_d = link_out_index_q;
     link_state_d = link_state_q;
     raw_mode_fifo_pop = 1'b0;
-
+    link_out_payload_size_d = link_out_payload_size_q;
     if (cfg_raw_mode_en_i) begin
       // Raw mode
       if (cfg_raw_mode_out_en_i & ~raw_mode_fifo_empty) begin
@@ -277,12 +299,19 @@ module slink_link_layer #(
         unique case (link_state_q)
           LinkSendIdle: begin
             if (axis_in_req_i.tvalid) begin
+              unique case(slink_pkg::tag_e'(axis_in_req_i.t.data[2:0]))
+                slink_pkg::TagAWrite:  link_out_payload_size_d = AChannelWritePayloadSplits * BandWidth;
+                slink_pkg::TagARead:   link_out_payload_size_d = AChannelReadPayloadSplits  * BandWidth; 
+                slink_pkg::TagRWrite:  link_out_payload_size_d = RChannelWritePayloadSplits * BandWidth;
+                slink_pkg::TagRRead:   link_out_payload_size_d = RChannelReadPayloadSplits  * BandWidth; 
+                default:    link_out_payload_size_d = 1;
+              endcase
               link_out_index_d = NumChannels * NumLanes * (1 + EnDdr);
               data_out_valid = '1;
               data_out_o = axis_in_req_i.t.data;
               if (data_out_ready_i) begin
                 link_state_d = LinkSendBusy;
-                if (link_out_index_d >= $bits(axis_in_req_i.t.data)) begin
+                if (link_out_index_d >= link_out_payload_size_d) begin
                   link_state_d = LinkSendIdle;
                   axis_in_rsp_o.tready = 1'b1;
                 end
@@ -295,7 +324,7 @@ module slink_link_layer #(
             data_out_o = axis_in_req_i.t.data >> link_out_index_q;
             if (data_out_ready_i) begin
               link_out_index_d = link_out_index_q + NumChannels * NumLanes * (1 + EnDdr);
-              if (link_out_index_d >= $bits(axis_in_req_i.t.data)) begin
+              if (link_out_index_d >= link_out_payload_size_d) begin
                 link_state_d = LinkSendIdle;
                 axis_in_rsp_o.tready = 1'b1;
               end
@@ -328,6 +357,7 @@ module slink_link_layer #(
   assign raw_mode_fifo_data_in = cfg_raw_mode_out_data_i;
 
   `FF(link_out_index_q, link_out_index_d, '0)
+  `FF(link_out_payload_size_q, link_out_payload_size_d, '0)
   `FF(link_state_q, link_state_d, LinkSendIdle)
 
 endmodule
