@@ -27,13 +27,11 @@ module slink
     parameter type obi_rsp_t  = logic,
     parameter type a_chan_t   = logic,
     parameter type r_chan_t   = logic,
-    parameter type a_optional_t     = logic,
-    parameter type r_optional_t     = logic,
     parameter type a_chan_write_t   = logic,
     parameter type a_chan_read_t    = logic,
     parameter type r_chan_write_t   = logic,
     parameter type r_chan_read_t    = logic,
-    parameter type stream_cfg_t     = logic
+    parameter slink_pkg::slink_obi_cfg_t slink_obi_cfg
 ) (
     input  logic                      clk_i,
     input  logic                      rst_ni,
@@ -138,6 +136,11 @@ module slink
         .axis_rsp_t     ( axis_rsp_t    ),
         .a_chan_t       ( a_chan_t      ),
         .r_chan_t       ( r_chan_t      ),
+        .a_chan_write_t ( a_chan_write_t ),
+        .a_chan_read_t  ( a_chan_read_t  ),
+        .r_chan_write_t ( r_chan_write_t ),
+        .r_chan_read_t  ( r_chan_read_t  ),
+        .slink_obi_cfg  ( slink_obi_cfg  ),
         .payload_t      ( payload_t     )
     ) i_serial_link_protocol (
         .clk_i          ( clk_i        ),

@@ -131,13 +131,11 @@ module tb_obi_slink;
         .obi_rsp_t       ( obi_rsp_t        ),
         .a_chan_t        ( obi_a_chan_t     ),
         .r_chan_t        ( obi_r_chan_t     ),
-        .a_optional_t    ( obi_a_optional_t ),
-        .r_optional_t    ( obi_r_optional_t ),
         .a_chan_write_t  ( slink_obi_a_chan_write_t   ),
         .a_chan_read_t   ( slink_obi_a_chan_read_t    ),
         .r_chan_write_t  ( slink_obi_r_chan_write_t   ),
         .r_chan_read_t   ( slink_obi_r_chan_read_t    ),
-        .stream_cfg_t    ( slink_obi_cfg_t            )
+        .slink_obi_cfg   ( SlinkObiCfg            )
     ) i_serial_link_1 (
         .clk_i             ( clk_1              ),
         .rst_ni            ( rst_1_n            ),
@@ -162,13 +160,11 @@ module tb_obi_slink;
         .obi_rsp_t       ( obi_rsp_t        ),
         .a_chan_t        ( obi_a_chan_t     ),
         .r_chan_t        ( obi_r_chan_t     ),
-        .a_optional_t    ( obi_a_optional_t ),
-        .r_optional_t    ( obi_r_optional_t ),
         .a_chan_write_t  ( slink_obi_a_chan_write_t   ),
         .a_chan_read_t   ( slink_obi_a_chan_read_t    ),
         .r_chan_write_t  ( slink_obi_r_chan_write_t   ),
         .r_chan_read_t   ( slink_obi_r_chan_read_t    ),
-        .stream_cfg_t    ( slink_obi_cfg_t            )
+        .slink_obi_cfg   ( SlinkObiCfg            )
     ) i_serial_link_2 (
         .clk_i             ( clk_2              ),
         .rst_ni            ( rst_2_n            ),

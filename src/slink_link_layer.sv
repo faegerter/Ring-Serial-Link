@@ -174,7 +174,7 @@ module slink_link_layer #(
       // Pop from Fifo and assemble in register
       if (flow_control_fifo_valid_out & recv_reg_in_ready[recv_reg_index_q]) begin
         if(recv_reg_index_q == 0)begin 
-          unique case(slink_pkg::tag_e'(flow_control_fifo_data_out[2:0]))
+          unique case(slink_pkg::tag_e'(flow_control_fifo_data_out[1:0]))
             slink_pkg::TagAWrite:  recv_reg_payload_size_d = AChannelWritePayloadSplits;
             slink_pkg::TagARead:   recv_reg_payload_size_d = AChannelReadPayloadSplits; 
             slink_pkg::TagRWrite:  recv_reg_payload_size_d = RChannelWritePayloadSplits;
@@ -299,7 +299,7 @@ module slink_link_layer #(
         unique case (link_state_q)
           LinkSendIdle: begin
             if (axis_in_req_i.tvalid) begin
-              unique case(slink_pkg::tag_e'(axis_in_req_i.t.data[2:0]))
+              unique case(slink_pkg::tag_e'(axis_in_req_i.t.data[1:0]))
                 slink_pkg::TagAWrite:  link_out_payload_size_d = AChannelWritePayloadSplits * BandWidth;
                 slink_pkg::TagARead:   link_out_payload_size_d = AChannelReadPayloadSplits  * BandWidth; 
                 slink_pkg::TagRWrite:  link_out_payload_size_d = RChannelWritePayloadSplits * BandWidth;

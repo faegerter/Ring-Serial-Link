@@ -18,7 +18,12 @@ module slink_prot_layer #(
     parameter type axis_rsp_t = logic,
     parameter type a_chan_t   = logic,
     parameter type r_chan_t   = logic,
-    parameter type payload_t  = logic
+    parameter type a_chan_write_t   = logic,
+    parameter type a_chan_read_t    = logic,
+    parameter type r_chan_write_t   = logic,
+    parameter type r_chan_read_t    = logic,
+    parameter type payload_t  = logic,
+    parameter slink_pkg::slink_obi_cfg_t slink_obi_cfg
 ) (
     input  logic      clk_i,
     input  logic      rst_ni,
@@ -37,49 +42,71 @@ module slink_prot_layer #(
     localparam int TX_FIFO_DEPTH = 3;
 
 
-    logic entropy_q, entropy_d;
+    logic rr_tx_out_arb_q, rr_tx_out_arb_d;
     payload_t payload_out, payload_in;
 
 
     logic tx_fifo_valid_out, tx_fifo_ready_out;
     logic tx_fifo_valid_in, tx_fifo_ready_in;
     payload_t tx_fifo_data_in, tx_fifo_data_out;
-    logic[2:0] tx_fifo_fill_state; // TODO ptr, not counter
+    logic[1:0] tx_fifo_fill_state;
+
+    typedef struct packed {
+        logic [3:0] src_id;
+        logic is_write;
+    } issued_reqs_data_t;
 
 
-    logic[3:0] issued_reqs_src_ids_fifo_data_in;
-    logic[3:0] issued_reqs_src_ids_fifo_data_out;
-    logic[1:0] issued_reqs_src_ids_fifo_fill_state; // TODO ptr, not counter
-    logic issued_reqs_src_ids_fifo_pop;
-    logic issued_reqs_src_ids_fifo_push;
-    logic issued_reqs_src_ids_fifo_full;
-    logic issued_reqs_src_ids_fifo_empty;
+    issued_reqs_data_t issued_reqs_fifo_data_in;
+    issued_reqs_data_t issued_reqs_fifo_data_out;
+    logic[1:0] issued_reqs_fifo_fill_state;
+    logic issued_reqs_fifo_pop;
+    logic issued_reqs_fifo_push;
+    logic issued_reqs_fifo_full;
+    logic issued_reqs_fifo_empty;
+
 
 
     fifo_v3 #(
         .DEPTH  ( 2           ),
-        .dtype  ( logic[3:0]  )
-    ) i_issued_reqs_src_ids_fifo (
+        .dtype  ( issued_reqs_data_t  )
+    ) i_issued_reqs_fifo (
         .clk_i      ( clk_i               ),
         .rst_ni     ( rst_ni              ),
         .flush_i    ( 1'b0                ),
         .testmode_i ( 1'b0                ),
-        .full_o     ( issued_reqs_src_ids_fifo_full ),
-        .empty_o    ( issued_reqs_src_ids_fifo_empty ),
-        .usage_o    ( issued_reqs_src_ids_fifo_fill_state ),
-        .data_i     ( issued_reqs_src_ids_fifo_data_in ),
-        .push_i     ( issued_reqs_src_ids_fifo_push ),
-        .data_o     ( issued_reqs_src_ids_fifo_data_out ),
-        .pop_i      ( issued_reqs_src_ids_fifo_pop )
+        .full_o     ( issued_reqs_fifo_full ),
+        .empty_o    ( issued_reqs_fifo_empty ),
+        .usage_o    ( issued_reqs_fifo_fill_state ),
+        .data_i     ( issued_reqs_fifo_data_in ),
+        .push_i     ( issued_reqs_fifo_push ),
+        .data_o     ( issued_reqs_fifo_data_out ),
+        .pop_i      ( issued_reqs_fifo_pop )
     );
 
+
+    logic [1:0] reserved_for_local_rsp_cnt;
+
+
+    assign reserved_for_local_rsp_cnt = obi_out_req_o.req ? issued_reqs_fifo_fill_state + 1 : issued_reqs_fifo_fill_state;
 
 
     logic can_enqueue_response, can_enqueue_tx;
 
-    assign can_enqueue_response = !issued_reqs_src_ids_fifo_full && tx_fifo_ready_in; //(tx_fifo_fill_state < TX_FIFO_DEPTH);
+    assign can_enqueue_response = ((TX_FIFO_DEPTH - tx_fifo_fill_state) > issued_reqs_fifo_fill_state) && !issued_reqs_fifo_full;
 
-    assign can_enqueue_tx = ((TX_FIFO_DEPTH - tx_fifo_fill_state) > issued_reqs_src_ids_fifo_fill_state);
+    assign can_enqueue_tx = ((TX_FIFO_DEPTH - tx_fifo_fill_state) > reserved_for_local_rsp_cnt);
+
+
+    r_chan_write_t r_chan_write_out;
+    r_chan_read_t r_chan_read_out;
+    a_chan_write_t a_chan_write_out;
+    a_chan_read_t a_chan_read_out;
+
+    r_chan_write_t r_chan_write_in;
+    r_chan_read_t r_chan_read_in;
+    a_chan_write_t a_chan_write_in;
+    a_chan_read_t a_chan_read_in;
 
 
     slink_pkg::rx_e rx_type;
@@ -89,25 +116,128 @@ module slink_prot_layer #(
 
         tx_type = slink_pkg::TxNone;
         payload_out = '0;
+        rr_tx_out_arb_d = rr_tx_out_arb_q;
 
-        if (obi_out_rsp_i.rvalid && !issued_reqs_src_ids_fifo_empty) begin
-            payload_out.hdr    = slink_pkg::TagR;
+        r_chan_write_out = '0;
+        r_chan_read_out = '0;
+        a_chan_write_out = '0;
+        a_chan_read_out = '0;
+
+        if (obi_out_rsp_i.rvalid && !issued_reqs_fifo_empty) begin
+            // rsp out always prioritized
+            payload_out.hdr    = issued_reqs_fifo_data_out.is_write ? slink_pkg::TagRWrite : slink_pkg::TagRRead;
             payload_out.src_id = node_id_i;
-            payload_out.dst_id = issued_reqs_src_ids_fifo_data_out;
-            payload_out.obi_ch = obi_out_rsp_i.r;
+            payload_out.dst_id = issued_reqs_fifo_data_out.src_id;
+
+            if (issued_reqs_fifo_data_out.is_write) begin
+                r_chan_write_out.rid = obi_out_rsp_i.r.rid;
+                r_chan_write_out.err = obi_out_rsp_i.r.err;
+                if (slink_obi_cfg.UseOptional) begin
+                    r_chan_write_out.r_optional = obi_out_rsp_i.r.r_optional;
+                end
+                payload_out.obi_ch = r_chan_write_out;
+
+            end else begin
+                r_chan_read_out.rdata = obi_out_rsp_i.r.rdata;
+                r_chan_read_out.rid = obi_out_rsp_i.r.rid;
+                r_chan_read_out.err = obi_out_rsp_i.r.err;
+                if (slink_obi_cfg.UseOptional) begin
+                    r_chan_read_out.r_optional = obi_out_rsp_i.r.r_optional;
+                end
+                payload_out.obi_ch = r_chan_read_out;
+            end
+
             tx_type = slink_pkg::TxOutgoingR;
 
-        end else if (obi_in_req_i.req && can_enqueue_tx && (rx_type != slink_pkg::RxTransit || ~entropy_q)) begin
-            payload_out.hdr    = slink_pkg::TagA;
-            payload_out.src_id = node_id_i;
-            payload_out.dst_id = obi_in_req_i.a.addr[ADDR_WIDTH-1 -: 4];
-            payload_out.obi_ch = obi_in_req_i.a;
-            tx_type = slink_pkg::TxOutgoingA;
+        end else if (can_enqueue_tx) begin
+            // Round Robin arbiter between req out and transit
+            unique case ({obi_in_req_i.req, rx_type == slink_pkg::RxTransit})
+                2'b01: begin
+                    // No request and transit
+                    payload_out  = payload_in;
+                    tx_type = slink_pkg::TxTransit;
+                    rr_tx_out_arb_d = 1'b0;
+                end
+                2'b10: begin
+                    // Request and no transit
+                    payload_out.hdr    = obi_in_req_i.a.we ? slink_pkg::TagAWrite : slink_pkg::TagARead;
+                    payload_out.src_id = node_id_i;
+                    payload_out.dst_id = obi_in_req_i.a.addr[ADDR_WIDTH-1 -: 4];
 
-        end else if (rx_type == slink_pkg::RxTransit && can_enqueue_tx && (~obi_in_req_i.req || entropy_q)) begin
-            payload_out  = payload_in;
-            tx_type = slink_pkg::TxTransit;
-            
+                    if (obi_in_req_i.a.we) begin
+                        a_chan_write_out.addr = obi_in_req_i.a.addr;
+                        a_chan_write_out.aid = obi_in_req_i.a.aid;
+                        a_chan_write_out.wdata = obi_in_req_i.a.wdata;
+                        if (slink_obi_cfg.UseOptional) begin
+                            a_chan_write_out.a_optional = obi_in_req_i.a.a_optional;
+                        end
+                        if (slink_obi_cfg.UseByteEnable) begin
+                            a_chan_write_out.be = obi_in_req_i.a.be;
+                        end
+                        payload_out.obi_ch = a_chan_write_out;
+
+                    end else begin
+                        a_chan_read_out.addr = obi_in_req_i.a.addr;
+                        a_chan_read_out.aid = obi_in_req_i.a.aid;
+                        if (slink_obi_cfg.UseOptional) begin
+                            a_chan_read_out.a_optional = obi_in_req_i.a.a_optional;
+                        end
+                        if (slink_obi_cfg.UseByteEnable) begin
+                            a_chan_read_out.be = obi_in_req_i.a.be;
+                        end
+                        payload_out.obi_ch = a_chan_read_out;
+
+                    end
+
+                    tx_type = slink_pkg::TxOutgoingA;
+                    rr_tx_out_arb_d = 1'b1;
+                end
+                2'b11: begin
+                    // Request and transit
+                    if (rr_tx_out_arb_q) begin
+                        payload_out  = payload_in;
+                        tx_type = slink_pkg::TxTransit;
+                    end else begin
+                        payload_out.hdr    = obi_in_req_i.a.we ? slink_pkg::TagAWrite : slink_pkg::TagARead;
+                        payload_out.src_id = node_id_i;
+                        payload_out.dst_id = obi_in_req_i.a.addr[ADDR_WIDTH-1 -: 4];
+
+                        if (obi_in_req_i.a.we) begin
+                            a_chan_write_out.addr = obi_in_req_i.a.addr;
+                            a_chan_write_out.aid = obi_in_req_i.a.aid;
+                            a_chan_write_out.wdata = obi_in_req_i.a.wdata;
+                            if (slink_obi_cfg.UseOptional) begin
+                                a_chan_write_out.a_optional = obi_in_req_i.a.a_optional;
+                            end
+                            if (slink_obi_cfg.UseByteEnable) begin
+                                a_chan_write_out.be = obi_in_req_i.a.be;
+                            end
+                            payload_out.obi_ch = a_chan_write_out;
+
+                        end else begin
+                            a_chan_read_out.addr = obi_in_req_i.a.addr;
+                            a_chan_read_out.aid = obi_in_req_i.a.aid;
+                            if (slink_obi_cfg.UseOptional) begin
+                                a_chan_read_out.a_optional = obi_in_req_i.a.a_optional;
+                            end
+                            if (slink_obi_cfg.UseByteEnable) begin
+                                a_chan_read_out.be = obi_in_req_i.a.be;
+                            end
+                            payload_out.obi_ch = a_chan_read_out;
+
+                        end
+
+                        tx_type = slink_pkg::TxOutgoingA;
+                    end
+                    rr_tx_out_arb_d = ~rr_tx_out_arb_q;
+                end
+                default: begin
+                    // No request and no transit
+                    tx_type = slink_pkg::TxNone;
+                    payload_out = '0;
+                    rr_tx_out_arb_d = rr_tx_out_arb_q;
+                end
+            endcase
         end
     end
 
@@ -119,13 +249,15 @@ module slink_prot_layer #(
         if (axis_in_req_i.tvalid) begin
             if (payload_in.dst_id == node_id_i) begin
                 unique case (payload_in.hdr)
-                    slink_pkg::TagA: rx_type = slink_pkg::RxIncomingA;
-                    slink_pkg::TagR: rx_type = slink_pkg::RxIncomingR;
+                    slink_pkg::TagARead:  rx_type = slink_pkg::RxIncomingA;
+                    slink_pkg::TagAWrite: rx_type = slink_pkg::RxIncomingA;
+                    slink_pkg::TagRRead:  rx_type = slink_pkg::RxIncomingR;
+                    slink_pkg::TagRWrite: rx_type = slink_pkg::RxIncomingR;
                     default:         rx_type = slink_pkg::RxError;
                 endcase
             end else if (payload_in.src_id == node_id_i) begin
                 rx_type = slink_pkg::RxLoop;
-            end else if (payload_in.hdr == slink_pkg::TagA || payload_in.hdr == slink_pkg::TagR) begin
+            end else if (payload_in.hdr == slink_pkg::TagARead || payload_in.hdr == slink_pkg::TagAWrite || payload_in.hdr == slink_pkg::TagRRead || payload_in.hdr == slink_pkg::TagRWrite) begin
                 rx_type = slink_pkg::RxTransit;
             end else begin
                 rx_type = slink_pkg::RxError;
@@ -136,36 +268,95 @@ module slink_prot_layer #(
 
     always_comb begin : commiter
 
-        obi_out_req_o.a = a_chan_t'(payload_in.obi_ch);
-        obi_in_rsp_o.r  = r_chan_t'(payload_in.obi_ch);
-        issued_reqs_src_ids_fifo_data_in = payload_in.src_id;
+        obi_in_rsp_o = '0;
+        obi_out_req_o = '0;
+
+        // obi_out_req_o.a = a_chan_t'(payload_in.obi_ch);
+        // obi_in_rsp_o.r  = r_chan_t'(payload_in.obi_ch);
 
         tx_fifo_valid_in = 1'b0;
-        issued_reqs_src_ids_fifo_pop = 1'b0;
-        issued_reqs_src_ids_fifo_push = 1'b0;
-        obi_in_rsp_o.gnt = 1'b0;
-        obi_in_rsp_o.rvalid = 1'b0;
+        issued_reqs_fifo_pop = 1'b0;
+        issued_reqs_fifo_push = 1'b0;
         axis_in_rsp_o.tready = 1'b0;
-        obi_out_req_o.req = 1'b0;
+
+        r_chan_write_in = '0;
+        r_chan_read_in = '0;
+        a_chan_write_in = '0;
+        a_chan_read_in = '0;
 
         if (rx_type == slink_pkg::RxIncomingR) begin
             obi_in_rsp_o.rvalid = 1'b1;
             axis_in_rsp_o.tready = 1'b1;
+            if (payload_in.hdr == slink_pkg::TagRRead) begin
+                r_chan_read_in = r_chan_read_t'(payload_in.obi_ch);
+
+                obi_in_rsp_o.r.rdata = r_chan_read_in.rdata;
+                obi_in_rsp_o.r.rid = r_chan_read_in.rid;
+                obi_in_rsp_o.r.err = r_chan_read_in.err;
+                if (slink_obi_cfg.UseOptional) begin
+                    obi_in_rsp_o.r.r_optional = r_chan_read_in.r_optional;
+                end
+
+            end else if (payload_in.hdr == slink_pkg::TagRWrite) begin
+                r_chan_write_in = r_chan_write_t'(payload_in.obi_ch);
+
+                obi_in_rsp_o.r.rdata = '0;
+                obi_in_rsp_o.r.rid = r_chan_write_in.rid;
+                obi_in_rsp_o.r.err = r_chan_write_in.err;
+                if (slink_obi_cfg.UseOptional) begin
+                    obi_in_rsp_o.r.r_optional = r_chan_write_in.r_optional;
+                end
+            end
         end
 
         if (rx_type == slink_pkg::RxLoop) begin
-            axis_in_rsp_o.tready = 1'b1; // Consume and discard (TODO: Needs to error out in future)
+            obi_in_rsp_o.rvalid = 1'b1;
+            obi_in_rsp_o.r.err = 1'b1;
+            axis_in_rsp_o.tready = 1'b1; // Consume and error
         end
 
         if (rx_type == slink_pkg::RxError) begin
-            axis_in_rsp_o.tready = 1'b1; // Consume and discard (TODO: Needs to error out in future)
+            axis_in_rsp_o.tready = 1'b1; // Consume and discard (not a payload)
         end
 
-        if (rx_type == slink_pkg::RxIncomingA && can_enqueue_response && can_enqueue_tx) begin
+        if (rx_type == slink_pkg::RxIncomingA && can_enqueue_response) begin
             obi_out_req_o.req = 1'b1;
 
+            if (payload_in.hdr == slink_pkg::TagARead) begin
+                a_chan_read_in = a_chan_read_t'(payload_in.obi_ch);
+
+                obi_out_req_o.a.addr = a_chan_read_in.addr;
+                obi_out_req_o.a.aid = a_chan_read_in.aid;
+                obi_out_req_o.a.wdata = '0;
+                obi_out_req_o.a.we = 1'b0;
+                if (slink_obi_cfg.UseOptional) begin
+                    obi_out_req_o.a.a_optional = a_chan_read_in.a_optional;
+                end
+                if (slink_obi_cfg.UseByteEnable) begin
+                    obi_out_req_o.a.be = a_chan_read_in.be;
+                end else begin
+                    obi_out_req_o.a.be = '1;
+                end
+
+            end else if (payload_in.hdr == slink_pkg::TagAWrite) begin
+                a_chan_write_in = a_chan_write_t'(payload_in.obi_ch);
+
+                obi_out_req_o.a.addr = a_chan_write_in.addr;
+                obi_out_req_o.a.aid = a_chan_write_in.aid;
+                obi_out_req_o.a.wdata = a_chan_write_in.wdata;
+                obi_out_req_o.a.we = 1'b1;
+                if (slink_obi_cfg.UseOptional) begin
+                    obi_out_req_o.a.a_optional = a_chan_write_in.a_optional;
+                end
+                if (slink_obi_cfg.UseByteEnable) begin
+                    obi_out_req_o.a.be = a_chan_write_in.be;
+                end else begin
+                    obi_out_req_o.a.be = '1;
+                end
+            end
+
             if (obi_out_rsp_i.gnt) begin
-                issued_reqs_src_ids_fifo_push    = 1'b1;
+                issued_reqs_fifo_push    = 1'b1;
                 axis_in_rsp_o.tready             = 1'b1;
             end
         end
@@ -173,13 +364,13 @@ module slink_prot_layer #(
         if (tx_fifo_ready_in) begin
             if (tx_type == slink_pkg::TxOutgoingR) begin
                 tx_fifo_valid_in = 1'b1;
-                issued_reqs_src_ids_fifo_pop = 1'b1;
+                issued_reqs_fifo_pop = 1'b1;
 
-            end else if (tx_type == slink_pkg::TxOutgoingA && !obi_out_req_o.req) begin
+            end else if (tx_type == slink_pkg::TxOutgoingA) begin
                 tx_fifo_valid_in = 1'b1;
                 obi_in_rsp_o.gnt = 1'b1;
 
-            end else if (tx_type == slink_pkg::TxTransit && !obi_out_req_o.req) begin
+            end else if (tx_type == slink_pkg::TxTransit) begin
                 tx_fifo_valid_in = 1'b1;
                 axis_in_rsp_o.tready = 1'b1;
 
@@ -192,6 +383,11 @@ module slink_prot_layer #(
     assign axis_out_req_o.tvalid = tx_fifo_valid_out;
     assign axis_out_req_o.t.data = tx_fifo_data_out;
     assign tx_fifo_ready_out = axis_out_rsp_i.tready;
+
+    assign issued_reqs_fifo_data_in = {
+        payload_in.src_id,
+        payload_in.hdr == slink_pkg::TagAWrite
+    };
 
     stream_fifo #(
         .DEPTH  ( 3           ),
@@ -213,8 +409,7 @@ module slink_prot_layer #(
     assign payload_in = payload_t'(axis_in_req_i.t.data);
 
 
-    assign entropy_d = entropy_q + (axis_out_req_o.tvalid & axis_out_rsp_i.tready);
-    `FF(entropy_q, entropy_d, '0);
+    `FF(rr_tx_out_arb_q, rr_tx_out_arb_d, '0);
 
 
 
