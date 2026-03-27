@@ -72,7 +72,7 @@ module slink_link_layer #(
   typedef enum logic [1:0] {LinkSendIdle, LinkSendBusy} link_state_e;
   typedef enum logic [1:0] {CreditSendIdle, CreditSendBusy} credit_state_e;
 
-  logic [PayloadSplits-1:0] recv_reg_in_valid, recv_reg_in_ready;
+  logic [PayloadSplits-1:0] recv_reg_in_valid, recv_reg_in_ready, recv_reg_in_data;
   logic [PayloadSplits-1:0] recv_reg_out_valid, recv_reg_out_ready;
   phy_data_t [PayloadSplits-1:0][NumChannels-1:0] recv_reg_data;
   logic [$clog2(PayloadSplits)-1:0] recv_reg_index_q, recv_reg_index_d;
@@ -130,7 +130,7 @@ module slink_link_layer #(
       .testmode_i ( 1'b0                        ),
       .valid_i    ( recv_reg_in_valid[i]        ),
       .ready_o    ( recv_reg_in_ready[i]        ),
-      .data_i     ( flow_control_fifo_data_out  ),
+      .data_i     ( recv_reg_in_data[i]         ),
       .valid_o    ( recv_reg_out_valid[i]       ),
       .ready_i    ( recv_reg_out_ready[i]       ),
       .data_o     ( recv_reg_data[i]            )
@@ -141,10 +141,11 @@ module slink_link_layer #(
   always_comb begin
     recv_reg_in_valid = '0;
     data_in_ready_o = '0;
+    recv_reg_in_data = '0;
     recv_reg_index_d = recv_reg_index_q;
     recv_reg_payload_size_d = recv_reg_payload_size_q;
     axis_out_req_o.tvalid = 1'b0;
-    axis_out_req_o.t.data = {'0, recv_reg_data[recv_reg_payload_size_d-1:0]};
+    axis_out_req_o.t.data = recv_reg_data;
     recv_reg_out_ready = '0;
     cfg_raw_mode_in_data_o = '0;
     cfg_raw_mode_in_data_valid_o = '0;
@@ -174,14 +175,40 @@ module slink_link_layer #(
       // Pop from Fifo and assemble in register
       if (flow_control_fifo_valid_out & recv_reg_in_ready[recv_reg_index_q]) begin
         if(recv_reg_index_q == 0)begin 
-          unique case(slink_pkg::tag_e'(flow_control_fifo_data_out[1:0]))
-            slink_pkg::TagAWrite:  recv_reg_payload_size_d = AChannelWritePayloadSplits;
-            slink_pkg::TagARead:   recv_reg_payload_size_d = AChannelReadPayloadSplits; 
-            slink_pkg::TagRWrite:  recv_reg_payload_size_d = RChannelWritePayloadSplits;
-            slink_pkg::TagRRead:   recv_reg_payload_size_d = RChannelReadPayloadSplits; 
-            default:    recv_reg_payload_size_d = 1;
+          unique case(slink_pkg::tag_e'(flow_control_fifo_data_out[0][1:0]))
+            slink_pkg::TagAWrite: 
+                begin 
+                  recv_reg_payload_size_d = AChannelWritePayloadSplits;
+                  recv_reg_in_data[PayloadSplits-1:AChannelWritePayloadSplits] = '0;
+                  recv_reg_in_valid[PayloadSplits-1:AChannelWritePayloadSplits] = '1;
+                end
+            slink_pkg::TagARead:  
+                begin 
+                  recv_reg_payload_size_d = AChannelReadPayloadSplits; 
+                  recv_reg_in_data[PayloadSplits-1:AChannelReadPayloadSplits] = '0;
+                  recv_reg_in_valid[PayloadSplits-1:AChannelReadPayloadSplits] = '1;
+                end
+            slink_pkg::TagRWrite:
+                begin
+                  recv_reg_payload_size_d = RChannelWritePayloadSplits;
+                  recv_reg_in_data[PayloadSplits-1:RChannelWritePayloadSplits] = '0;
+                  recv_reg_in_valid[PayloadSplits-1:RChannelWritePayloadSplits] = '1;
+                end
+            slink_pkg::TagRRead:
+                begin
+                  recv_reg_payload_size_d = RChannelReadPayloadSplits;
+                  recv_reg_in_data[PayloadSplits-1:RChannelWritePayloadSplits] = '0;
+                  recv_reg_in_valid[PayloadSplits-1:RChannelWritePayloadSplits] = '1;
+                end 
+            default:
+                begin
+                  recv_reg_payload_size_d = 1;
+                  recv_reg_in_data[PayloadSplits-1:1] = '0;
+                  recv_reg_in_valid[PayloadSplits-1:1] = '1;
+                end
           endcase
         end
+        recv_reg_in_data[recv_reg_index_q] = flow_control_fifo_data_out;
         recv_reg_in_valid[recv_reg_index_q] = 1'b1;
         flow_control_fifo_ready_out = 1'b1;
         // Increment recv reg counter
