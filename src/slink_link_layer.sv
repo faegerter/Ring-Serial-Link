@@ -72,9 +72,9 @@ module slink_link_layer #(
   typedef enum logic [1:0] {LinkSendIdle, LinkSendBusy} link_state_e;
   typedef enum logic [1:0] {CreditSendIdle, CreditSendBusy} credit_state_e;
 
-  logic [PayloadSplits-1:0] recv_reg_in_valid, recv_reg_in_ready, recv_reg_in_data;
+  logic [PayloadSplits-1:0] recv_reg_in_valid, recv_reg_in_ready;
   logic [PayloadSplits-1:0] recv_reg_out_valid, recv_reg_out_ready;
-  phy_data_t [PayloadSplits-1:0][NumChannels-1:0] recv_reg_data;
+  phy_data_t [PayloadSplits-1:0][NumChannels-1:0] recv_reg_data, recv_reg_in_data;
   logic [$clog2(PayloadSplits)-1:0] recv_reg_index_q, recv_reg_index_d;
   logic [$clog2(PayloadSplits)-1:0] recv_reg_payload_size_q, recv_reg_payload_size_d;
 

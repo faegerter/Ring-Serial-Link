@@ -14,10 +14,12 @@
 module slink_prot_layer #(
     parameter type obi_req_t  = logic,
     parameter type obi_rsp_t  = logic,
+    parameter type a_optional_t  = logic,
+    parameter type r_optional_t  = logic,
     parameter type axis_req_t = logic,
     parameter type axis_rsp_t = logic,
-    parameter type a_chan_t   = logic,
-    parameter type r_chan_t   = logic,
+    // parameter type a_chan_t   = logic,
+    // parameter type r_chan_t   = logic,
     parameter type a_chan_write_t   = logic,
     parameter type a_chan_read_t    = logic,
     parameter type r_chan_write_t   = logic,
@@ -38,7 +40,6 @@ module slink_prot_layer #(
     output axis_rsp_t axis_in_rsp_o
 );
 
-    localparam int ADDR_WIDTH = $bits(obi_in_req_i.a.addr);
     localparam int TX_FIFO_DEPTH = 3;
 
 
@@ -109,6 +110,65 @@ module slink_prot_layer #(
     a_chan_read_t a_chan_read_in;
 
 
+    assign r_chan_write_out.rid = obi_out_rsp_i.r.rid;
+    assign r_chan_write_out.err = obi_out_rsp_i.r.err;
+
+    assign r_chan_read_out.rid = obi_out_rsp_i.r.rid;
+    assign r_chan_read_out.err = obi_out_rsp_i.r.err;
+    assign r_chan_read_out.rdata = obi_out_rsp_i.r.rdata;
+
+    assign a_chan_write_out.addr = obi_in_req_i.a.addr;
+    assign a_chan_write_out.aid = obi_in_req_i.a.aid;
+    assign a_chan_write_out.wdata = obi_in_req_i.a.wdata;
+
+    assign a_chan_read_out.addr = obi_in_req_i.a.addr;
+    assign a_chan_read_out.aid = obi_in_req_i.a.aid;
+
+
+    a_optional_t a_chan_read_optional_in;
+    a_optional_t a_chan_write_optional_in;
+    r_optional_t r_chan_read_optional_in;
+    r_optional_t r_chan_write_optional_in;
+    logic[slink_obi_cfg.DataWidth/8-1:0] a_chan_read_be_in;
+    logic[slink_obi_cfg.DataWidth/8-1:0] a_chan_write_be_in;
+
+
+    assign r_chan_read_in  = r_chan_read_t'(payload_in.obi_ch);
+    assign r_chan_write_in = r_chan_write_t'(payload_in.obi_ch);
+    assign a_chan_read_in  = a_chan_read_t'(payload_in.obi_ch);
+    assign a_chan_write_in = a_chan_write_t'(payload_in.obi_ch);
+
+
+    if (slink_obi_cfg.UseOptional) begin
+        assign r_chan_write_out.r_optional = obi_out_rsp_i.r.r_optional;
+        assign r_chan_read_out.r_optional = obi_out_rsp_i.r.r_optional;
+        assign a_chan_write_out.a_optional = obi_in_req_i.a.a_optional;
+        assign a_chan_read_out.a_optional = obi_in_req_i.a.a_optional;
+
+        assign a_chan_read_optional_in = a_chan_read_in.a_optional;
+        assign a_chan_write_optional_in = a_chan_write_in.a_optional;
+        assign r_chan_read_optional_in = r_chan_read_in.r_optional;
+        assign r_chan_write_optional_in = r_chan_write_in.r_optional;
+
+    end else begin
+        assign a_chan_read_optional_in = '0;
+        assign a_chan_write_optional_in = '0;
+        assign r_chan_read_optional_in = '0;
+        assign r_chan_write_optional_in = '0;
+    end
+
+    if (slink_obi_cfg.UseByteEnable) begin
+        assign a_chan_read_be_in = a_chan_read_in.be;
+        assign a_chan_write_be_in = a_chan_write_in.be;
+        assign a_chan_write_out.be = obi_in_req_i.a.be;
+        assign a_chan_read_out.be = obi_in_req_i.a.be;
+
+    end else begin
+        assign a_chan_read_be_in = '1;
+        assign a_chan_write_be_in = '1;
+    end
+
+
     slink_pkg::rx_e rx_type;
     slink_pkg::tx_e tx_type;
 
@@ -118,11 +178,6 @@ module slink_prot_layer #(
         payload_out = '0;
         rr_tx_out_arb_d = rr_tx_out_arb_q;
 
-        r_chan_write_out = '0;
-        r_chan_read_out = '0;
-        a_chan_write_out = '0;
-        a_chan_read_out = '0;
-
         if (obi_out_rsp_i.rvalid && !issued_reqs_fifo_empty) begin
             // rsp out always prioritized
             payload_out.hdr    = issued_reqs_fifo_data_out.is_write ? slink_pkg::TagRWrite : slink_pkg::TagRRead;
@@ -130,20 +185,9 @@ module slink_prot_layer #(
             payload_out.dst_id = issued_reqs_fifo_data_out.src_id;
 
             if (issued_reqs_fifo_data_out.is_write) begin
-                r_chan_write_out.rid = obi_out_rsp_i.r.rid;
-                r_chan_write_out.err = obi_out_rsp_i.r.err;
-                if (slink_obi_cfg.UseOptional) begin
-                    r_chan_write_out.r_optional = obi_out_rsp_i.r.r_optional;
-                end
                 payload_out.obi_ch = r_chan_write_out;
 
             end else begin
-                r_chan_read_out.rdata = obi_out_rsp_i.r.rdata;
-                r_chan_read_out.rid = obi_out_rsp_i.r.rid;
-                r_chan_read_out.err = obi_out_rsp_i.r.err;
-                if (slink_obi_cfg.UseOptional) begin
-                    r_chan_read_out.r_optional = obi_out_rsp_i.r.r_optional;
-                end
                 payload_out.obi_ch = r_chan_read_out;
             end
 
@@ -162,29 +206,12 @@ module slink_prot_layer #(
                     // Request and no transit
                     payload_out.hdr    = obi_in_req_i.a.we ? slink_pkg::TagAWrite : slink_pkg::TagARead;
                     payload_out.src_id = node_id_i;
-                    payload_out.dst_id = obi_in_req_i.a.addr[ADDR_WIDTH-1 -: 4];
+                    payload_out.dst_id = obi_in_req_i.a.addr[slink_obi_cfg.AddrWidth-1 -: 4];
 
                     if (obi_in_req_i.a.we) begin
-                        a_chan_write_out.addr = obi_in_req_i.a.addr;
-                        a_chan_write_out.aid = obi_in_req_i.a.aid;
-                        a_chan_write_out.wdata = obi_in_req_i.a.wdata;
-                        if (slink_obi_cfg.UseOptional) begin
-                            a_chan_write_out.a_optional = obi_in_req_i.a.a_optional;
-                        end
-                        if (slink_obi_cfg.UseByteEnable) begin
-                            a_chan_write_out.be = obi_in_req_i.a.be;
-                        end
                         payload_out.obi_ch = a_chan_write_out;
 
                     end else begin
-                        a_chan_read_out.addr = obi_in_req_i.a.addr;
-                        a_chan_read_out.aid = obi_in_req_i.a.aid;
-                        if (slink_obi_cfg.UseOptional) begin
-                            a_chan_read_out.a_optional = obi_in_req_i.a.a_optional;
-                        end
-                        if (slink_obi_cfg.UseByteEnable) begin
-                            a_chan_read_out.be = obi_in_req_i.a.be;
-                        end
                         payload_out.obi_ch = a_chan_read_out;
 
                     end
@@ -200,29 +227,12 @@ module slink_prot_layer #(
                     end else begin
                         payload_out.hdr    = obi_in_req_i.a.we ? slink_pkg::TagAWrite : slink_pkg::TagARead;
                         payload_out.src_id = node_id_i;
-                        payload_out.dst_id = obi_in_req_i.a.addr[ADDR_WIDTH-1 -: 4];
+                        payload_out.dst_id = obi_in_req_i.a.addr[slink_obi_cfg.AddrWidth-1 -: 4];
 
                         if (obi_in_req_i.a.we) begin
-                            a_chan_write_out.addr = obi_in_req_i.a.addr;
-                            a_chan_write_out.aid = obi_in_req_i.a.aid;
-                            a_chan_write_out.wdata = obi_in_req_i.a.wdata;
-                            if (slink_obi_cfg.UseOptional) begin
-                                a_chan_write_out.a_optional = obi_in_req_i.a.a_optional;
-                            end
-                            if (slink_obi_cfg.UseByteEnable) begin
-                                a_chan_write_out.be = obi_in_req_i.a.be;
-                            end
                             payload_out.obi_ch = a_chan_write_out;
 
                         end else begin
-                            a_chan_read_out.addr = obi_in_req_i.a.addr;
-                            a_chan_read_out.aid = obi_in_req_i.a.aid;
-                            if (slink_obi_cfg.UseOptional) begin
-                                a_chan_read_out.a_optional = obi_in_req_i.a.a_optional;
-                            end
-                            if (slink_obi_cfg.UseByteEnable) begin
-                                a_chan_read_out.be = obi_in_req_i.a.be;
-                            end
                             payload_out.obi_ch = a_chan_read_out;
 
                         end
@@ -271,41 +281,26 @@ module slink_prot_layer #(
         obi_in_rsp_o = '0;
         obi_out_req_o = '0;
 
-        // obi_out_req_o.a = a_chan_t'(payload_in.obi_ch);
-        // obi_in_rsp_o.r  = r_chan_t'(payload_in.obi_ch);
-
         tx_fifo_valid_in = 1'b0;
         issued_reqs_fifo_pop = 1'b0;
         issued_reqs_fifo_push = 1'b0;
         axis_in_rsp_o.tready = 1'b0;
 
-        r_chan_write_in = '0;
-        r_chan_read_in = '0;
-        a_chan_write_in = '0;
-        a_chan_read_in = '0;
-
         if (rx_type == slink_pkg::RxIncomingR) begin
             obi_in_rsp_o.rvalid = 1'b1;
             axis_in_rsp_o.tready = 1'b1;
             if (payload_in.hdr == slink_pkg::TagRRead) begin
-                r_chan_read_in = r_chan_read_t'(payload_in.obi_ch);
-
                 obi_in_rsp_o.r.rdata = r_chan_read_in.rdata;
                 obi_in_rsp_o.r.rid = r_chan_read_in.rid;
                 obi_in_rsp_o.r.err = r_chan_read_in.err;
-                if (slink_obi_cfg.UseOptional) begin
-                    obi_in_rsp_o.r.r_optional = r_chan_read_in.r_optional;
-                end
+                obi_in_rsp_o.r.r_optional = r_chan_read_optional_in;
 
             end else if (payload_in.hdr == slink_pkg::TagRWrite) begin
-                r_chan_write_in = r_chan_write_t'(payload_in.obi_ch);
-
                 obi_in_rsp_o.r.rdata = '0;
                 obi_in_rsp_o.r.rid = r_chan_write_in.rid;
                 obi_in_rsp_o.r.err = r_chan_write_in.err;
-                if (slink_obi_cfg.UseOptional) begin
-                    obi_in_rsp_o.r.r_optional = r_chan_write_in.r_optional;
-                end
+                obi_in_rsp_o.r.r_optional = r_chan_write_optional_in;
+
             end
         end
 
@@ -323,41 +318,26 @@ module slink_prot_layer #(
             obi_out_req_o.req = 1'b1;
 
             if (payload_in.hdr == slink_pkg::TagARead) begin
-                a_chan_read_in = a_chan_read_t'(payload_in.obi_ch);
-
                 obi_out_req_o.a.addr = a_chan_read_in.addr;
                 obi_out_req_o.a.aid = a_chan_read_in.aid;
                 obi_out_req_o.a.wdata = '0;
                 obi_out_req_o.a.we = 1'b0;
-                if (slink_obi_cfg.UseOptional) begin
-                    obi_out_req_o.a.a_optional = a_chan_read_in.a_optional;
-                end
-                if (slink_obi_cfg.UseByteEnable) begin
-                    obi_out_req_o.a.be = a_chan_read_in.be;
-                end else begin
-                    obi_out_req_o.a.be = '1;
-                end
+                obi_out_req_o.a.a_optional = a_chan_read_optional_in;
+                obi_out_req_o.a.be = a_chan_read_be_in;
 
             end else if (payload_in.hdr == slink_pkg::TagAWrite) begin
-                a_chan_write_in = a_chan_write_t'(payload_in.obi_ch);
-
                 obi_out_req_o.a.addr = a_chan_write_in.addr;
                 obi_out_req_o.a.aid = a_chan_write_in.aid;
                 obi_out_req_o.a.wdata = a_chan_write_in.wdata;
                 obi_out_req_o.a.we = 1'b1;
-                if (slink_obi_cfg.UseOptional) begin
-                    obi_out_req_o.a.a_optional = a_chan_write_in.a_optional;
-                end
-                if (slink_obi_cfg.UseByteEnable) begin
-                    obi_out_req_o.a.be = a_chan_write_in.be;
-                end else begin
-                    obi_out_req_o.a.be = '1;
-                end
+                obi_out_req_o.a.a_optional = a_chan_write_optional_in;
+                obi_out_req_o.a.be = a_chan_write_be_in;
+                
             end
 
             if (obi_out_rsp_i.gnt) begin
                 issued_reqs_fifo_push    = 1'b1;
-                axis_in_rsp_o.tready             = 1'b1;
+                axis_in_rsp_o.tready     = 1'b1;
             end
         end
 

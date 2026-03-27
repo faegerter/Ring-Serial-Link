@@ -25,13 +25,15 @@ module slink
     parameter int ObiAddrWidth      = 32,
     parameter type obi_req_t  = logic,
     parameter type obi_rsp_t  = logic,
-    parameter type a_chan_t   = logic,
-    parameter type r_chan_t   = logic,
+    parameter type a_optional_t  = logic,
+    parameter type r_optional_t  = logic,
+    // parameter type a_chan_t   = logic,
+    // parameter type r_chan_t   = logic,
     parameter type a_chan_write_t   = logic,
     parameter type a_chan_read_t    = logic,
     parameter type r_chan_write_t   = logic,
     parameter type r_chan_read_t    = logic,
-    parameter slink_pkg::slink_obi_cfg_t slink_obi_cfg
+    parameter slink_pkg::slink_obi_cfg_t slink_obi_cfg = slink_pkg::slink_obi_cfg(32, 32, 32, 4, 1, 0)
 ) (
     input  logic                      clk_i,
     input  logic                      rst_ni,
@@ -132,10 +134,12 @@ module slink
     slink_prot_layer #(
         .obi_req_t      ( obi_req_t     ),
         .obi_rsp_t      ( obi_rsp_t     ),
+        .a_optional_t   ( a_optional_t  ),
+        .r_optional_t   ( r_optional_t  ),
         .axis_req_t     ( axis_req_t    ),
         .axis_rsp_t     ( axis_rsp_t    ),
-        .a_chan_t       ( a_chan_t      ),
-        .r_chan_t       ( r_chan_t      ),
+        // .a_chan_t       ( a_chan_t      ),
+        // .r_chan_t       ( r_chan_t      ),
         .a_chan_write_t ( a_chan_write_t ),
         .a_chan_read_t  ( a_chan_read_t  ),
         .r_chan_write_t ( r_chan_write_t ),
