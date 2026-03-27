@@ -72,7 +72,7 @@ module tb_obi_slink;
     localparam int unsigned RegStrbWidth    = RegDataWidth / 8;
 
     localparam bit          UseByteEnable   = 1;
-    localparam bit          UseOptional     = 1;
+    localparam bit          UseOptional     = 0;
 
     // ==============
     //    DDR Links

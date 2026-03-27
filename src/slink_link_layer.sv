@@ -179,32 +179,47 @@ module slink_link_layer #(
             slink_pkg::TagAWrite: 
                 begin 
                   recv_reg_payload_size_d = AChannelWritePayloadSplits;
-                  recv_reg_in_data[PayloadSplits-1:AChannelWritePayloadSplits] = '0;
-                  recv_reg_in_valid[PayloadSplits-1:AChannelWritePayloadSplits] = '1;
+                  if(PayloadSplits > AChannelWritePayloadSplits) 
+                    begin
+                      recv_reg_in_data[PayloadSplits-1:AChannelWritePayloadSplits] = '0;
+                      recv_reg_in_valid[PayloadSplits-1:AChannelWritePayloadSplits] = '1;
+                    end
                 end
             slink_pkg::TagARead:  
                 begin 
                   recv_reg_payload_size_d = AChannelReadPayloadSplits; 
-                  recv_reg_in_data[PayloadSplits-1:AChannelReadPayloadSplits] = '0;
-                  recv_reg_in_valid[PayloadSplits-1:AChannelReadPayloadSplits] = '1;
+                  if(PayloadSplits > AChannelReadPayloadSplits) 
+                    begin
+                      recv_reg_in_data[PayloadSplits-1:AChannelReadPayloadSplits] = '0;
+                      recv_reg_in_valid[PayloadSplits-1:AChannelReadPayloadSplits] = '1;
+                    end
                 end
             slink_pkg::TagRWrite:
                 begin
                   recv_reg_payload_size_d = RChannelWritePayloadSplits;
-                  recv_reg_in_data[PayloadSplits-1:RChannelWritePayloadSplits] = '0;
-                  recv_reg_in_valid[PayloadSplits-1:RChannelWritePayloadSplits] = '1;
+                  if(PayloadSplits > RChannelWritePayloadSplits) 
+                    begin
+                      recv_reg_in_data[PayloadSplits-1:RChannelWritePayloadSplits] = '0;
+                      recv_reg_in_valid[PayloadSplits-1:RChannelWritePayloadSplits] = '1;
+                    end
                 end
             slink_pkg::TagRRead:
                 begin
                   recv_reg_payload_size_d = RChannelReadPayloadSplits;
-                  recv_reg_in_data[PayloadSplits-1:RChannelWritePayloadSplits] = '0;
-                  recv_reg_in_valid[PayloadSplits-1:RChannelWritePayloadSplits] = '1;
+                  if(PayloadSplits > RChannelReadPayloadSplits) 
+                    begin
+                      recv_reg_in_data[PayloadSplits-1:RChannelReadPayloadSplits] = '0;
+                      recv_reg_in_valid[PayloadSplits-1:RChannelReadPayloadSplits] = '1;
+                    end
                 end 
             default:
                 begin
                   recv_reg_payload_size_d = 1;
-                  recv_reg_in_data[PayloadSplits-1:1] = '0;
-                  recv_reg_in_valid[PayloadSplits-1:1] = '1;
+                  if(PayloadSplits > 1) 
+                    begin
+                      recv_reg_in_data[PayloadSplits-1:1] = '0;
+                      recv_reg_in_valid[PayloadSplits-1:1] = '1;
+                    end
                 end
           endcase
         end
