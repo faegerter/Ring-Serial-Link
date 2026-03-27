@@ -68,10 +68,10 @@ module slink
     // 1) OBI Beat
     // 2) Header
     typedef struct packed {
-        slink_pkg::tag_e hdr;
-        logic [3:0] dst_id;
-        logic [3:0] src_id;
         logic [MaxObiChannelBits-1:0] obi_ch;
+        logic [3:0] src_id;
+        logic [3:0] dst_id;
+        slink_pkg::tag_e hdr;
     } payload_t;
 
     localparam int BandWidth = NumChannels * NumBitsPerCycle; // doubled BW if DDR enabled
