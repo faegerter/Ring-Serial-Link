@@ -127,6 +127,8 @@ module slink
     logic [NumChannels-1:0]       phy2alloc_data_in_valid;
     logic [NumChannels-1:0]       alloc2phy_data_in_ready;
 
+    credit_t                      credits_out;
+
     ////////////////////////
     //   PROTOCOL LAYER   //
     ////////////////////////
@@ -145,7 +147,9 @@ module slink
         .r_chan_write_t ( r_chan_write_t ),
         .r_chan_read_t  ( r_chan_read_t  ),
         .slink_obi_cfg  ( slink_obi_cfg  ),
-        .payload_t      ( payload_t     )
+        .payload_t      ( payload_t      ),
+        .credit_t       ( credit_t       ),
+        .PayloadSplits  ( PayloadSplits  )
     ) i_serial_link_protocol (
         .clk_i          ( clk_i        ),
         .rst_ni         ( rst_ni       ),
@@ -157,7 +161,8 @@ module slink
         .axis_in_req_i  ( axis_in_req     ),
         .axis_in_rsp_o  ( axis_in_rsp     ),
         .axis_out_req_o ( axis_out_req    ),
-        .axis_out_rsp_i ( axis_out_rsp    )
+        .axis_out_rsp_i ( axis_out_rsp    ),
+        .credits_out_i  ( credits_out     )
     );
 
     /////////////////////////
@@ -233,7 +238,8 @@ module slink
         .cfg_raw_mode_out_data_fifo_fill_state_o ( raw_mode_out_data_fill_state ),
         .cfg_raw_mode_out_data_fifo_is_full_o    ( raw_mode_out_data_is_full ),
         .credit_recv_clk_i                       ( credit_recv_clk_i                                ),
-        .credit_rtrn_clk_o                       ( credit_rtrn_clk_o                                )
+        .credit_rtrn_clk_o                       ( credit_rtrn_clk_o                                ),
+        .credits_out_o                           ( credits_out                                      )
     );
 
 
@@ -368,7 +374,9 @@ module slink
     //   CONFIGURATION REGISTERS   //
     /////////////////////////////////
 
-    slink_reg i_serial_link_reg (
+    slink_reg #( 
+        .ID_WIDTH (slink_obi_cfg.IDWidth)
+    )i_serial_link_reg (
         .clk  (clk_i),
         .arst_n (rst_ni),
 

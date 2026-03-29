@@ -25,7 +25,9 @@ module slink_prot_layer #(
     parameter type r_chan_write_t   = logic,
     parameter type r_chan_read_t    = logic,
     parameter type payload_t  = logic,
-    parameter slink_pkg::slink_obi_cfg_t slink_obi_cfg
+    parameter slink_pkg::slink_obi_cfg_t slink_obi_cfg,
+    parameter type credit_t = logic,
+    parameter int PayloadSplits = 1
 ) (
     input  logic      clk_i,
     input  logic      rst_ni,
@@ -37,7 +39,8 @@ module slink_prot_layer #(
     output axis_req_t axis_out_req_o,
     input  axis_rsp_t axis_out_rsp_i,
     input  axis_req_t axis_in_req_i,
-    output axis_rsp_t axis_in_rsp_o
+    output axis_rsp_t axis_in_rsp_o,
+    input  credit_t   credits_out_i 
 );
 
     localparam int TX_FIFO_DEPTH = 3;
@@ -195,7 +198,7 @@ module slink_prot_layer #(
 
         end else if (can_enqueue_tx) begin
             // Round Robin arbiter between req out and transit
-            unique case ({obi_in_req_i.req, rx_type == slink_pkg::RxTransit})
+            unique case ({obi_in_req_i.req && (credits_out_i > PayloadSplits), rx_type == slink_pkg::RxTransit})
                 2'b01: begin
                     // No request and transit
                     payload_out  = payload_in;
@@ -257,16 +260,16 @@ module slink_prot_layer #(
         rx_type = slink_pkg::RxNone;
 
         if (axis_in_req_i.tvalid) begin
-            if (payload_in.dst_id == node_id_i) begin
+            if (payload_in.src_id == node_id_i) begin
+                rx_type = slink_pkg::RxLoop;
+            end else if (payload_in.dst_id == node_id_i) begin
                 unique case (payload_in.hdr)
                     slink_pkg::TagARead:  rx_type = slink_pkg::RxIncomingA;
                     slink_pkg::TagAWrite: rx_type = slink_pkg::RxIncomingA;
                     slink_pkg::TagRRead:  rx_type = slink_pkg::RxIncomingR;
                     slink_pkg::TagRWrite: rx_type = slink_pkg::RxIncomingR;
                     default:         rx_type = slink_pkg::RxError;
-                endcase
-            end else if (payload_in.src_id == node_id_i) begin
-                rx_type = slink_pkg::RxLoop;
+                endcase 
             end else if (payload_in.hdr == slink_pkg::TagARead || payload_in.hdr == slink_pkg::TagAWrite || payload_in.hdr == slink_pkg::TagRRead || payload_in.hdr == slink_pkg::TagRWrite) begin
                 rx_type = slink_pkg::RxTransit;
             end else begin

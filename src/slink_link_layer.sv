@@ -61,7 +61,8 @@ module slink_link_layer #(
   output logic                            cfg_raw_mode_out_data_fifo_is_full_o,
   // Credits
   input  logic                            credit_recv_clk_i,
-  output logic                            credit_rtrn_clk_o
+  output logic                            credit_rtrn_clk_o,
+  output credit_t                         credits_out_o 
   );
 
   localparam int AChannelWritePayloadSplits = (AChannelWritePayloadSize + BandWidth - 1)/BandWidth;
@@ -397,6 +398,7 @@ module slink_link_layer #(
   assign cfg_raw_mode_out_data_fifo_is_full_o = raw_mode_fifo_full;
   assign raw_mode_fifo_push = cfg_raw_mode_out_data_valid_i & ~raw_mode_fifo_full;
   assign raw_mode_fifo_data_in = cfg_raw_mode_out_data_i;
+  assign credits_out_o = credits_out_d;
 
   `FF(link_out_index_q, link_out_index_d, '0)
   `FF(link_out_payload_size_q, link_out_payload_size_d, '0)

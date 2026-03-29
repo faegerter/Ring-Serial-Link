@@ -1,33 +1,88 @@
-# Copyright 2023 ETH Zurich and University of Bologna.
+# Copyright 2026 ETH Zurich and University of Bologna.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
 onerror {resume}
 quietly WaveActivateNextPane {} 0
 
-set tb_name [lindex [split [lindex [find instances -nodu *] 0] "/"] 1]
+# ---------------------------------------------------------------------------
+#  Find all slink instances — these paths are proven to work.
+#  Typical element: /tb_obi_slink/gen_nodes[3]/i_slink
+# ---------------------------------------------------------------------------
+set slink_instances [find instances -bydu slink -recursive]
+set num_nodes       [llength $slink_instances]
+if {$num_nodes == 0} {
+    puts "wave.tcl: ERROR — no 'slink' instances found"
+    return
+}
 
-for {set i 1} {$i < 3} {incr i} {
-    set group_name "DDR $i"
-    set num_channels [expr {[llength [find instances -bydu serial_link_physical -recursive]] / 2}]
+# ---------------------------------------------------------------------------
+#  Derive tb_name from the first slink path rather than a separate find call.
+#  Split "/tb_obi_slink/gen_nodes[0]/i_slink" on "/" → {"" "tb_obi_slink" ...}
+#  Index 1 is the testbench name.
+# ---------------------------------------------------------------------------
+set first_path [lindex $slink_instances 0]
+set tb_name    [lindex [split $first_path "/"] 1]
+puts "wave.tcl: testbench  = $tb_name"
+puts "wave.tcl: num_nodes  = $num_nodes"
 
-    add wave -noupdate -expand -group $group_name -ports /$tb_name/i_serial_link_$i/*
+# ---------------------------------------------------------------------------
+#  Count PHY channels per node.
+# ---------------------------------------------------------------------------
+set all_phy      [find instances -bydu serial_link_physical -recursive]
+set total_phy    [llength $all_phy]
+if {$total_phy == 0} {
+    puts "wave.tcl: WARNING — no serial_link_physical instances found, defaulting to 1"
+    set num_channels 1
+} else {
+    set num_channels [expr {$total_phy / $num_nodes}]
+}
+puts "wave.tcl: num_channels = $num_channels"
 
-    add wave -noupdate -group $group_name -group {NETWORK} /$tb_name/i_serial_link_$i/i_serial_link_protocol/*
+# ---------------------------------------------------------------------------
+#  Helper: escape [ and ] in a path so Tcl does not treat them as command
+#  substitutions when the variable is expanded inside an add wave call.
+# ---------------------------------------------------------------------------
+proc esc {path} {
+    return [string map {[ \[ ] \]} $path]
+}
 
-    add wave -noupdate -group $group_name -group {LINK} /$tb_name/i_serial_link_$i/i_serial_link_data_link/*
+# ---------------------------------------------------------------------------
+#  Add waves for every ring node.
+# ---------------------------------------------------------------------------
+for {set i 0} {$i < $num_nodes} {incr i} {
+    set group_name "Node $i"
+    set base [esc [format {/%s/gen_nodes[%d]/i_slink} $tb_name $i]]
 
+    # -- Top-level slink ports --
+    add wave -noupdate -expand -group $group_name -ports $base/*
+
+    # -- Network layer --
+    add wave -noupdate -group $group_name -group {NETWORK} \
+        $base/i_serial_link_protocol/*
+
+    # -- Data-link layer --
+    add wave -noupdate -group $group_name -group {LINK} \
+        $base/i_serial_link_data_link/*
+
+    # -- Channel allocator (only when NumChannels > 1) --
     if {$num_channels > 1} {
-        add wave -noupdate -group $group_name -group {CHANNEL_ALLOCATOR} -ports /$tb_name/i_serial_link_$i/gen_channel_alloc/i_channel_allocator/*
+        add wave -noupdate -group $group_name -group {CHANNEL_ALLOCATOR} -ports \
+            $base/gen_channel_alloc/i_channel_allocator/*
     }
 
+    # -- PHY TX / RX per channel --
     for {set c 0} {$c < $num_channels} {incr c} {
-        add wave -noupdate -group $group_name -group PHY -group TX -group CH$c /$tb_name/i_serial_link_$i/gen_phy_channels[$c]/i_serial_link_physical/i_serial_link_physical_tx/*
-        add wave -noupdate -group $group_name -group PHY -group RX -group CH$c /$tb_name/i_serial_link_$i/gen_phy_channels[$c]/i_serial_link_physical/i_serial_link_physical_rx/*
+        set phy_base [esc [format {%s/gen_phy_channels[%d]/i_serial_link_physical} $base $c]]
+        add wave -noupdate -group $group_name -group PHY -group TX -group CH$c \
+            $phy_base/i_serial_link_physical_tx/*
+        add wave -noupdate -group $group_name -group PHY -group RX -group CH$c \
+            $phy_base/i_serial_link_physical_rx/*
     }
 
-    add wave -noupdate -group $group_name -group {CONFIG} /$tb_name/i_serial_link_$i/reg2hw
-    add wave -noupdate -group $group_name -group {CONFIG} /$tb_name/i_serial_link_$i/hw2reg
+    # -- Register map --
+    add wave -noupdate -group $group_name -group {CONFIG} $base/reg2hw
+    add wave -noupdate -group $group_name -group {CONFIG} $base/hw2reg
 }
 
 TreeUpdate [SetDefaultTree]
