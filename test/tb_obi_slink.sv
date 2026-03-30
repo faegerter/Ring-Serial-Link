@@ -47,8 +47,8 @@ module tb_obi_slink;
   // ================================================================
   //  Parameters
   // ================================================================
-  localparam int unsigned NumNodes     = 4;
-  localparam int unsigned TestDuration = 20;  // transactions per node per destination
+  localparam int unsigned NumNodes     = 16;
+  localparam int unsigned TestDuration = 15;  // transactions per node per destination
 
   localparam int unsigned MemDepth    = 256;
   localparam int unsigned AddrIdxBits = $clog2(MemDepth);
