@@ -15,7 +15,6 @@ module slink_link_layer #(
   parameter type phy_data_t = logic,
   parameter int NumChannels = 1,
   parameter int NumLanes    = 8,
-  parameter int RecvFifoDepth = -1,
   parameter int RawModeFifoDepth = 8,
   parameter int PayloadSplits = -1,
   parameter bit EnDdr = 1'b1,
@@ -100,26 +99,6 @@ module slink_link_layer #(
 
   //Datatype for the stream fifo and register
   typedef phy_data_t [NumChannels-1:0] phy_data_chan_t;
-  phy_data_chan_t flow_control_fifo_data_out;
-  logic flow_control_fifo_valid_out, flow_control_fifo_ready_out;
-  logic flow_control_fifo_valid_in, flow_control_fifo_ready_in;
-
-  stream_fifo #(
-    .T(phy_data_chan_t),
-    .DEPTH (RecvFifoDepth)
-  ) i_flow_control_fifo (
-    .clk_i      ( clk_i                         ),
-    .rst_ni     ( rst_ni                        ),
-    .flush_i    ( cfg_flow_control_fifo_clear_i ),
-    .testmode_i ( 1'b0                          ),
-    .usage_o    (                               ),
-    .data_i     ( data_in_i                     ),
-    .valid_i    ( flow_control_fifo_valid_in    ),
-    .ready_o    ( flow_control_fifo_ready_in    ),
-    .data_o     ( flow_control_fifo_data_out    ),
-    .valid_o    ( flow_control_fifo_valid_out   ),
-    .ready_i    ( flow_control_fifo_ready_out   )
-  );
 
   for (genvar i = 0; i < PayloadSplits; i++) begin : gen_recv_reg
     stream_register #(
@@ -150,8 +129,7 @@ module slink_link_layer #(
     recv_reg_out_ready = '0;
     cfg_raw_mode_in_data_o = '0;
     cfg_raw_mode_in_data_valid_o = '0;
-    flow_control_fifo_valid_in = 1'b0;
-    flow_control_fifo_ready_out = 1'b0;
+
 
     if (cfg_raw_mode_en_i) begin
       // Raw mode
@@ -171,12 +149,10 @@ module slink_link_layer #(
     end else begin
       // Normal operating mode
       // If all inputs of each channel have valid data, push it to fifo
-      flow_control_fifo_valid_in = &data_in_valid_i;
-      data_in_ready_o = {NumChannels{flow_control_fifo_valid_in & flow_control_fifo_ready_in}};
       // Pop from Fifo and assemble in register
-      if (flow_control_fifo_valid_out & recv_reg_in_ready[recv_reg_index_q]) begin
+      if (&data_in_valid_i & recv_reg_in_ready[recv_reg_index_q]) begin
         if(recv_reg_index_q == 0)begin 
-          unique case(slink_pkg::tag_e'(flow_control_fifo_data_out[0][1:0]))
+          unique case(slink_pkg::tag_e'(data_in_i[0][$bits(slink_pkg::tag_e)-1:0]))
             slink_pkg::TagAWrite: 
                 begin 
                   recv_reg_payload_size_d = AChannelWritePayloadSplits;
@@ -224,9 +200,9 @@ module slink_link_layer #(
                 end
           endcase
         end
-        recv_reg_in_data[recv_reg_index_q] = flow_control_fifo_data_out;
+        recv_reg_in_data[recv_reg_index_q] = data_in_i;
         recv_reg_in_valid[recv_reg_index_q] = 1'b1;
-        flow_control_fifo_ready_out = 1'b1;
+        data_in_ready_o = {NumChannels{&data_in_valid_i}};
         // Increment recv reg counter
         recv_reg_index_d = (recv_reg_index_q == recv_reg_payload_size_d - 1)? 0 : recv_reg_index_q + 1;
       end
@@ -255,7 +231,7 @@ module slink_link_layer #(
       credit_state_d = credit_state_q;
       credit_rtrn_clk_o = 1'b0;
 
-      if (flow_control_fifo_ready_out) begin 
+      if (&data_in_ready_o) begin 
         credits_to_send_d++;
       end
 

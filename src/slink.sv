@@ -199,7 +199,6 @@ module slink
         .phy_data_t       ( phy_data_t        ),
         .NumChannels      ( NumChannels       ),
         .NumLanes         ( NumLanes          ),
-        .RecvFifoDepth    ( RecvFifoDepth     ),
         .RawModeFifoDepth ( RawModeFifoDepth  ),
         .PayloadSplits    ( PayloadSplits     ),
         .EnDdr            ( EnDdr             ),
@@ -347,7 +346,7 @@ module slink
     for (genvar i = 0; i < NumChannels; i++) begin : gen_phy_channels
         serial_link_physical #(
             .NumLanes         ( NumLanes          ),
-            .FifoDepth        ( RawModeFifoDepth  ),
+            .FifoDepth        ( RecvFifoDepth     ),
             .MaxClkDiv        ( MaxClkDiv         ),
             .EnDdr            ( EnDdr             ),
             .phy_data_t       ( phy_data_t        )
