@@ -198,9 +198,8 @@ module slink_prot_layer #(
 
         end else if (can_enqueue_tx) begin
             // Round Robin arbiter between req out and transit
-            //TODO change the credits out i and payloadsplits to a proper condition. The 3 should represent the tx fifo size.
-            //However, we don't know if the tx fifo might be bigger than the rx fifo i.e. tx fifo size times payload splits.
-            unique case ({obi_in_req_i.req && (credits_out_i > 3*PayloadSplits), rx_type == slink_pkg::RxTransit})
+            // Only accept new requests when TX Fifo has more than one slot available. This way the ring doesn't block and doesn't waste cycles.
+            unique case ({obi_in_req_i.req && ( ((TX_FIFO_DEPTH - tx_fifo_fill_state) > 1)), rx_type == slink_pkg::RxTransit})
                 2'b01: begin
                     // No request and transit
                     payload_out  = payload_in;
