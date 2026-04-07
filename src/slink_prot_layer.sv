@@ -292,7 +292,7 @@ module slink_prot_layer #(
 
         end else if (can_enqueue_tx) begin
             // Round Robin arbiter between req out and transit
-            unique case ({obi_in_req_i.req && ~&rsp_reorder_idx_pending_q, rx_type == slink_pkg::RxTransit})
+            unique case ({obi_in_req_i.req && ~&rsp_reorder_idx_pending_q && ((TX_FIFO_DEPTH - tx_fifo_fill_state) > 1), rx_type == slink_pkg::RxTransit})
                 2'b01: begin
                     // No request and transit
                     payload_out  = payload_in;

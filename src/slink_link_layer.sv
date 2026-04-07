@@ -89,6 +89,7 @@ module slink_link_layer #(
 
   credit_t credits_out_q, credits_out_d;
   credit_t credits_to_send_q, credits_to_send_d;
+  logic credit_in;
   logic credit_in_ready;
 
   logic [NumChannels-1:0] data_out_valid;
