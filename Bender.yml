@@ -15,6 +15,9 @@ dependencies:
   axi_stream:          { git: "https://github.com/pulp-platform/axi_stream.git",         version: 0.1.1  }
   obi:                 { git: "https://github.com/pulp-platform/obi.git",                version: 0.1.7  }
 
+export_include_dirs:
+  - include
+
 sources:
   files:
 
