@@ -202,6 +202,10 @@ module slink_prot_layer #(
     a_chan_write_t a_chan_write_out;
     a_chan_read_t a_chan_read_out;
 
+    a_chan_write_t a_chan_write_loc;
+    a_chan_read_t  a_chan_read_loc;
+
+
     r_chan_write_t r_chan_write_in;
     r_chan_read_t r_chan_read_in;
     a_chan_write_t a_chan_write_in;
@@ -292,7 +296,7 @@ module slink_prot_layer #(
 
         end else if (can_enqueue_tx) begin
             // Round Robin arbiter between req out and transit
-            unique case ({obi_in_req_i.req && ~&rsp_reorder_idx_pending_q && ((TX_FIFO_DEPTH - tx_fifo_fill_state) > 1), rx_type == slink_pkg::RxTransit})
+            unique case ({obi_in_req_i.req && ~&rsp_reorder_idx_pending_q, rx_type == slink_pkg::RxTransit})
                 2'b01: begin
                     // No request and transit
                     payload_out  = payload_in;
@@ -302,16 +306,18 @@ module slink_prot_layer #(
                 end
                 2'b10: begin
                     // Request and no transit
-                    payload_out = make_a_payload(obi_in_req_i.a.we, node_id_i, addr_to_node_id, a_chan_write_out, a_chan_read_out);
+                    a_chan_write_loc = a_chan_write_out;
+                    a_chan_read_loc  = a_chan_read_out;
+                    if (addr_to_node_id == node_id_i) begin
+                        a_chan_write_loc.addr[slink_obi_cfg.AddrWidth-1 -: 4] = '0;
+                        a_chan_read_loc.addr[slink_obi_cfg.AddrWidth-1 -: 4]  = '0;
+                    end
+                    payload_out = make_a_payload(obi_in_req_i.a.we, node_id_i, addr_to_node_id, a_chan_write_loc, a_chan_read_loc);
 
                     tx_cmd.aid = obi_in_req_i.a.aid;
                     tx_cmd.valid = 1'b1;
+                    tx_cmd.tx_type = slink_pkg::TxOutgoingA;
 
-                    if (addr_to_node_id == node_id_i) begin
-                        tx_cmd.tx_type = slink_pkg::TxSelfReq; // TODO this shouldn't be gated with can_enqueue_tx
-                    end else begin
-                        tx_cmd.tx_type = slink_pkg::TxOutgoingA;
-                    end
                     rr_tx_out_arb_d = 1'b1;
                 end
                 2'b11: begin
@@ -322,16 +328,21 @@ module slink_prot_layer #(
                         tx_cmd.valid = 1'b1;
 
                     end else begin
-                        payload_out = make_a_payload(obi_in_req_i.a.we, node_id_i, addr_to_node_id, a_chan_write_out, a_chan_read_out);
+                        
+                        a_chan_write_loc = a_chan_write_out;
+                        a_chan_read_loc  = a_chan_read_out;
+
+                        if (addr_to_node_id == node_id_i) begin
+                            a_chan_write_loc.addr[slink_obi_cfg.AddrWidth-1 -: 4] = '0;
+                            a_chan_read_loc.addr[slink_obi_cfg.AddrWidth-1 -: 4]  = '0;
+                        end
+
+                        payload_out = make_a_payload(obi_in_req_i.a.we, node_id_i, addr_to_node_id, a_chan_write_loc, a_chan_read_loc);
 
                         tx_cmd.aid = obi_in_req_i.a.aid;
                         tx_cmd.valid = 1'b1;
 
-                        if (addr_to_node_id == node_id_i) begin
-                            tx_cmd.tx_type = slink_pkg::TxSelfReq; // TODO this shouldn't be gated with can_enqueue_tx
-                        end else begin
-                            tx_cmd.tx_type = slink_pkg::TxOutgoingA;
-                        end
+                        tx_cmd.tx_type = slink_pkg::TxOutgoingA;
                     end
                     rr_tx_out_arb_d = ~rr_tx_out_arb_q;
                 end
@@ -389,18 +400,29 @@ module slink_prot_layer #(
         rsp_reorder_in_data   = '0;
         rsp_reorder_out_ready = '0;
 
-        if (rx_type == slink_pkg::RxIncomingRRead && rsp_reorder_in_ready[r_chan_read_in.rid]) begin
+        if (rx_type == slink_pkg::RxIncomingRRead && r_chan_read_in.rid == rsp_reorder_idx_head_d) begin 
             axis_in_rsp_o.tready = 1'b1;
-            rsp_reorder_in_valid[r_chan_read_in.rid] = 1'b1;
-            rsp_reorder_in_data[r_chan_read_in.rid] = obi_rsp_pack(1'b1, r_chan_read_in.rdata, rsp_reorder_ids_q[r_chan_read_in.rid], r_chan_read_in.err, r_chan_read_optional_in);
+            obi_in_rsp_o = obi_rsp_pack(1'b1, r_chan_read_in.rdata, rsp_reorder_ids_q[r_chan_read_in.rid], r_chan_read_in.err, r_chan_read_optional_in);
+            rsp_reorder_idx_head_d = `INCR_WRAP(rsp_reorder_idx_head_d, MAX_OUTSTANDING_OUT);
+            rsp_reorder_idx_pending_d[rsp_reorder_idx_head_d] = 1'b0;
 
-        end
-
-        if (rx_type == slink_pkg::RxIncomingRWrite && rsp_reorder_in_ready[r_chan_write_in.rid]) begin
+        end else if(rx_type == slink_pkg::RxIncomingRWrite && r_chan_write_in.rid == rsp_reorder_idx_head_d) begin 
             axis_in_rsp_o.tready = 1'b1;
-            rsp_reorder_in_valid[r_chan_write_in.rid] = 1'b1;
-            rsp_reorder_in_data[r_chan_write_in.rid] = obi_rsp_pack(1'b1, '0, rsp_reorder_ids_q[r_chan_write_in.rid], r_chan_write_in.err, r_chan_write_optional_in);
+            obi_in_rsp_o = obi_rsp_pack(1'b1, '0, rsp_reorder_ids_q[r_chan_write_in.rid], r_chan_write_in.err, r_chan_write_optional_in);
+            rsp_reorder_idx_head_d = `INCR_WRAP(rsp_reorder_idx_head_q, MAX_OUTSTANDING_OUT);
+            rsp_reorder_idx_pending_d[rsp_reorder_idx_head_q] = 1'b0;
 
+        end else begin if (rx_type == slink_pkg::RxIncomingRRead && rsp_reorder_in_ready[r_chan_read_in.rid]) begin
+                axis_in_rsp_o.tready = 1'b1;
+                rsp_reorder_in_valid[r_chan_read_in.rid] = 1'b1;
+                rsp_reorder_in_data[r_chan_read_in.rid] = obi_rsp_pack(1'b1, r_chan_read_in.rdata, rsp_reorder_ids_q[r_chan_read_in.rid], r_chan_read_in.err, r_chan_read_optional_in);
+
+            end
+            if (rx_type == slink_pkg::RxIncomingRWrite && rsp_reorder_in_ready[r_chan_write_in.rid]) begin
+                axis_in_rsp_o.tready = 1'b1;
+                rsp_reorder_in_valid[r_chan_write_in.rid] = 1'b1;
+                rsp_reorder_in_data[r_chan_write_in.rid] = obi_rsp_pack(1'b1, '0, rsp_reorder_ids_q[r_chan_write_in.rid], r_chan_write_in.err, r_chan_write_optional_in);
+            end
         end
 
         if (rx_type == slink_pkg::RxLoop) begin
