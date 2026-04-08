@@ -3,12 +3,14 @@
 # SPDX-License-Identifier: SHL-0.51
 
 package:
-  name: serial_link
+  name: slink_obi
   authors:
     - "Tim Fischer <fischeti@iis.ee.ethz.ch>"
     - "Manuel Eggimann <meggimann@iis.ee.ethz.ch>"
     - "Thomas Benz <tbenz@iis.ee.ethz.ch>"
     - "Paul Scheffler <paulsc@iis.ee.ethz.ch>"
+    - "Llorenç Muela Hausmann <lmuela@ethz.ch>"
+    - "Fabian Aegerter <faegerter@ethz.ch>"
 
 dependencies:
   common_cells:        { git: "https://github.com/pulp-platform/common_cells.git",       version: 1.28.0 }
@@ -16,7 +18,10 @@ dependencies:
   obi:                 { git: "https://github.com/pulp-platform/obi.git",                version: 0.1.7  }
 
 export_include_dirs:
-  - include
+  - include/
+  - src
+  - src/include
+  - src/regs
 
 sources:
   files:
@@ -53,10 +58,4 @@ sources:
       - test/tb_stream_chopper.sv
       - test/tb_stream_chopper_dechopper.sv
       - test/tb_channel_allocator.sv
-
-export_include_dirs:
-  - include/
-  - src
-  - src/include
-  - src/regs
 

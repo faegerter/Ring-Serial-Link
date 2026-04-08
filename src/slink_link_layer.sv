@@ -89,7 +89,6 @@ module slink_link_layer #(
 
   credit_t credits_out_q, credits_out_d;
   credit_t credits_to_send_q, credits_to_send_d;
-  logic credit_in;
   logic credit_in_ready;
 
   logic [NumChannels-1:0] data_out_valid;
@@ -157,38 +156,34 @@ module slink_link_layer #(
             slink_pkg::TagAWrite: 
                 begin 
                   recv_reg_payload_size_d = AChannelWritePayloadSplits;
-                  if(PayloadSplits - 1 > AChannelWritePayloadSplits) 
-                    begin
-                      recv_reg_in_data[PayloadSplits-1:AChannelWritePayloadSplits] = '0;
-                      recv_reg_in_valid[PayloadSplits-1:AChannelWritePayloadSplits] = '1;
-                    end
+                  for (int i = AChannelWritePayloadSplits; i < PayloadSplits; i++) begin
+                    recv_reg_in_data[i] = '0;
+                    recv_reg_in_valid[i] = 1'b1;
+                  end
                 end
             slink_pkg::TagARead:  
                 begin 
                   recv_reg_payload_size_d = AChannelReadPayloadSplits; 
-                  if(PayloadSplits - 1 > AChannelReadPayloadSplits) 
-                    begin
-                      recv_reg_in_data[PayloadSplits-1:AChannelReadPayloadSplits] = '0;
-                      recv_reg_in_valid[PayloadSplits-1:AChannelReadPayloadSplits] = '1;
-                    end
+                  for (int i = AChannelReadPayloadSplits; i < PayloadSplits; i++) begin
+                    recv_reg_in_data[i] = '0;
+                    recv_reg_in_valid[i] = 1'b1;
+                  end
                 end
             slink_pkg::TagRWrite:
                 begin
                   recv_reg_payload_size_d = RChannelWritePayloadSplits;
-                  if(PayloadSplits - 1 > RChannelWritePayloadSplits) 
-                    begin
-                      recv_reg_in_data[PayloadSplits-1:RChannelWritePayloadSplits] = '0;
-                      recv_reg_in_valid[PayloadSplits-1:RChannelWritePayloadSplits] = '1;
-                    end
+                  for (int i = RChannelWritePayloadSplits; i < PayloadSplits; i++) begin
+                    recv_reg_in_data[i] = '0;
+                    recv_reg_in_valid[i] = 1'b1;
+                  end
                 end
             slink_pkg::TagRRead:
                 begin
                   recv_reg_payload_size_d = RChannelReadPayloadSplits;
-                  if(PayloadSplits - 1 > RChannelReadPayloadSplits) 
-                    begin
-                      recv_reg_in_data[PayloadSplits-1:RChannelReadPayloadSplits] = '0;
-                      recv_reg_in_valid[PayloadSplits-1:RChannelReadPayloadSplits] = '1;
-                    end
+                  for (int i = RChannelReadPayloadSplits; i < PayloadSplits; i++) begin
+                    recv_reg_in_data[i] = '0;
+                    recv_reg_in_valid[i] = 1'b1;
+                  end
                 end 
             default:
                 begin
