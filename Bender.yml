@@ -53,3 +53,10 @@ sources:
       - test/tb_stream_chopper.sv
       - test/tb_stream_chopper_dechopper.sv
       - test/tb_channel_allocator.sv
+
+export_include_dirs:
+  - include/
+  - src
+  - src/include
+  - src/regs
+
