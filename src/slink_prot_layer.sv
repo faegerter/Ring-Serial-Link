@@ -219,12 +219,12 @@ module slink_prot_layer #(
     assign r_chan_read_out.err = obi_out_rsp_i.r.err;
     assign r_chan_read_out.rdata = obi_out_rsp_i.r.rdata;
 
-    assign a_chan_write_out.addr = obi_in_req_i.a.addr;
+    assign a_chan_write_out.addr = {4'b0, obi_in_req_i.a.addr[slink_obi_cfg.AddrWidth-5:0]};
     // assign a_chan_write_out.aid = obi_in_req_i.a.aid;
     assign a_chan_write_out.aid = rsp_reorder_idx_tail_q;
     assign a_chan_write_out.wdata = obi_in_req_i.a.wdata;
 
-    assign a_chan_read_out.addr = obi_in_req_i.a.addr;
+    assign a_chan_read_out.addr = {4'b0, obi_in_req_i.a.addr[slink_obi_cfg.AddrWidth-5:0]};
     // assign a_chan_read_out.aid = obi_in_req_i.a.aid;
     assign a_chan_read_out.aid = rsp_reorder_idx_tail_q;
 
