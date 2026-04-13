@@ -65,7 +65,7 @@ module tb_obi_slink;
   localparam obi_cfg_t ObiCfg = obi_default_cfg(
       ObiAddrWidth, ObiDataWidth, ObiIdWidth, ObiMinimalOptionalConfig);
   localparam slink_obi_cfg_t SlinkObiCfg = slink_obi_cfg(
-      ObiAddrWidth, ObiDataWidth, ObiDataWidth, ObiIdWidth, UseByteEnable, UseOptional);
+      ObiAddrWidth, ObiDataWidth, ObiDataWidth, ObiIdWidth, ObiIdWidth, UseByteEnable, UseOptional);
 
   `OBI_TYPEDEF_DEFAULT_ALL(obi, ObiCfg)
   `SLINK_OBI_TYPEDEF_DEFAULT(slink_obi, SlinkObiCfg)
@@ -191,8 +191,10 @@ module tb_obi_slink;
 
       // SLINK instance
       slink #(
-          .obi_req_t       ( obi_req_t               ),
-          .obi_rsp_t       ( obi_rsp_t               ),
+          .obi_req_mgr_t   ( obi_req_t                ),
+          .obi_rsp_mgr_t   ( obi_rsp_t                ),
+          .obi_req_sbr_t   ( obi_req_t                ),
+          .obi_rsp_sbr_t   ( obi_rsp_t                ),
           .a_optional_t    ( obi_a_optional_t         ),
           .r_optional_t    ( obi_r_optional_t         ),
           .a_chan_write_t  ( slink_obi_a_chan_write_t ),

@@ -15,8 +15,10 @@
 
 
 module slink_prot_layer #(
-    parameter type obi_req_t  = logic,
-    parameter type obi_rsp_t  = logic,
+    parameter type obi_req_mgr_t  = logic,
+    parameter type obi_rsp_mgr_t  = logic,
+    parameter type obi_req_sbr_t  = logic,
+    parameter type obi_rsp_sbr_t  = logic,
     parameter type a_optional_t  = logic,
     parameter type r_optional_t  = logic,
     parameter type axis_req_t = logic,
@@ -30,18 +32,18 @@ module slink_prot_layer #(
     parameter type credit_t = logic,
     parameter int PayloadSplits = 1
 ) (
-    input  logic      clk_i,
-    input  logic      rst_ni,
-    input  logic[3:0] node_id_i,
-    input  obi_req_t  obi_in_req_i,
-    output obi_rsp_t  obi_in_rsp_o,
-    output obi_req_t  obi_out_req_o,
-    input  obi_rsp_t  obi_out_rsp_i,
-    output axis_req_t axis_out_req_o,
-    input  axis_rsp_t axis_out_rsp_i,
-    input  axis_req_t axis_in_req_i,
-    output axis_rsp_t axis_in_rsp_o,
-    input  credit_t   credits_out_i 
+    input  logic          clk_i,
+    input  logic          rst_ni,
+    input  logic[3:0]     node_id_i,
+    input  obi_req_sbr_t  obi_in_req_i,
+    output obi_rsp_sbr_t  obi_in_rsp_o,
+    output obi_req_mgr_t  obi_out_req_o,
+    input  obi_rsp_mgr_t  obi_out_rsp_i,
+    output axis_req_t     axis_out_req_o,
+    input  axis_rsp_t     axis_out_rsp_i,
+    input  axis_req_t     axis_in_req_i,
+    output axis_rsp_t     axis_in_rsp_o,
+    input  credit_t       credits_out_i 
 );
 
     typedef logic [slink_obi_cfg.IDWidth-1:0] obi_id_t;
@@ -49,7 +51,7 @@ module slink_prot_layer #(
     typedef logic [slink_obi_cfg.DataWidth/8-1:0] obi_be_t;
 
 
-    function automatic obi_rsp_t obi_rsp_pack(logic rvalid, obi_data_t rdata, obi_id_t rid, logic err, r_optional_t r_optional);
+    function automatic obi_rsp_sbr_t obi_rsp_pack(logic rvalid, obi_data_t rdata, obi_id_t rid, logic err, r_optional_t r_optional);
         return '{
             rvalid: rvalid,
             gnt: 1'b0,
@@ -156,7 +158,7 @@ module slink_prot_layer #(
     `FF(rsp_reorder_idx_head_q, rsp_reorder_idx_head_d, '0);
     `FF(rsp_reorder_idx_tail_q, rsp_reorder_idx_tail_d, '0);
 
-    obi_rsp_t [MAX_OUTSTANDING_OUT-1:0] rsp_reorder_in_data, rsp_reorder_out_data;
+    obi_rsp_sbr_t [MAX_OUTSTANDING_OUT-1:0] rsp_reorder_in_data, rsp_reorder_out_data;
     logic [MAX_OUTSTANDING_OUT-1:0] rsp_reorder_in_valid, rsp_reorder_out_valid;
     logic [MAX_OUTSTANDING_OUT-1:0] rsp_reorder_in_ready, rsp_reorder_out_ready;
     
@@ -168,7 +170,7 @@ module slink_prot_layer #(
 
     for (genvar i = 0; i < MAX_OUTSTANDING_OUT; i++) begin : gen_reorder_rsp_buffers
         stream_register #(
-            .T (obi_rsp_t)
+            .T (obi_rsp_sbr_t)
         ) i_recv_reg (
             .clk_i      ( clk_i                       ),
             .rst_ni     ( rst_ni                      ),
@@ -219,12 +221,12 @@ module slink_prot_layer #(
     assign r_chan_read_out.err = obi_out_rsp_i.r.err;
     assign r_chan_read_out.rdata = obi_out_rsp_i.r.rdata;
 
-    assign a_chan_write_out.addr = {4'b0, obi_in_req_i.a.addr[slink_obi_cfg.AddrWidth-5:0]};
+    assign a_chan_write_out.addr = obi_in_req_i.a.addr;
     // assign a_chan_write_out.aid = obi_in_req_i.a.aid;
     assign a_chan_write_out.aid = rsp_reorder_idx_tail_q;
     assign a_chan_write_out.wdata = obi_in_req_i.a.wdata;
 
-    assign a_chan_read_out.addr = {4'b0, obi_in_req_i.a.addr[slink_obi_cfg.AddrWidth-5:0]};
+    assign a_chan_read_out.addr = obi_in_req_i.a.addr;
     // assign a_chan_read_out.aid = obi_in_req_i.a.aid;
     assign a_chan_read_out.aid = rsp_reorder_idx_tail_q;
 
@@ -463,7 +465,7 @@ module slink_prot_layer #(
         if (rx_type == slink_pkg::RxIncomingARead && can_enqueue_response) begin
             obi_out_req_o.req = 1'b1;
 
-            obi_out_req_o.a.addr = a_chan_read_in.addr;
+            obi_out_req_o.a.addr = a_chan_read_in.addr & 32'h0FFFFFFF;
             obi_out_req_o.a.aid = a_chan_read_in.aid;
             obi_out_req_o.a.wdata = '0;
             obi_out_req_o.a.we = 1'b0;
@@ -478,8 +480,7 @@ module slink_prot_layer #(
 
         if (rx_type == slink_pkg::RxIncomingAWrite && can_enqueue_response) begin
             obi_out_req_o.req = 1'b1;
-
-            obi_out_req_o.a.addr = a_chan_write_in.addr;
+            obi_out_req_o.a.addr = a_chan_write_in.addr & 32'h0FFFFFFF;
             obi_out_req_o.a.aid = a_chan_write_in.aid;
             obi_out_req_o.a.wdata = a_chan_write_in.wdata;
             obi_out_req_o.a.we = 1'b1;
