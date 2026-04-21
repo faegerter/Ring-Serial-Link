@@ -11,7 +11,6 @@
 
 
 
-`define INCR_WRAP(num_q, MAX) ((num_q == MAX-1) ? 0 : num_q + 1)
 
 
 module slink_prot_layer #(
@@ -26,9 +25,7 @@ module slink_prot_layer #(
     parameter type r_chan_write_t   = logic,
     parameter type r_chan_read_t    = logic,
     parameter type payload_t  = logic,
-    parameter slink_pkg::slink_obi_cfg_t slink_obi_cfg,
-    parameter type credit_t = logic,
-    parameter int PayloadSplits = 1
+    parameter slink_pkg::slink_obi_cfg_t slink_obi_cfg
 ) (
     input  logic      clk_i,
     input  logic      rst_ni,
@@ -40,14 +37,23 @@ module slink_prot_layer #(
     output axis_req_t axis_out_req_o,
     input  axis_rsp_t axis_out_rsp_i,
     input  axis_req_t axis_in_req_i,
-    output axis_rsp_t axis_in_rsp_o,
-    input  credit_t   credits_out_i 
+    output axis_rsp_t axis_in_rsp_o
 );
 
     typedef logic [slink_obi_cfg.IDWidth-1:0] obi_id_t;
     typedef logic [slink_obi_cfg.DataWidth-1:0] obi_data_t;
     typedef logic [slink_obi_cfg.DataWidth/8-1:0] obi_be_t;
 
+
+    //////////////////
+    //   FUNCTIONS  //
+    //////////////////
+
+    function automatic logic [$clog2(MAX_OUTSTANDING_OUT):0] incr_wrap(
+        input logic [$clog2(MAX_OUTSTANDING_OUT):0] val
+    );
+        return (val == MAX_OUTSTANDING_OUT - 1) ? '0 : val + 1;
+    endfunction
 
     function automatic obi_rsp_t obi_rsp_pack(logic rvalid, obi_data_t rdata, obi_id_t rid, logic err, r_optional_t r_optional);
         return '{
@@ -216,12 +222,10 @@ module slink_prot_layer #(
     assign r_chan_read_out.rdata = obi_out_rsp_i.r.rdata;
 
     assign a_chan_write_out.addr = obi_in_req_i.a.addr;
-    // assign a_chan_write_out.aid = obi_in_req_i.a.aid;
     assign a_chan_write_out.aid = rsp_reorder_idx_tail_q;
     assign a_chan_write_out.wdata = obi_in_req_i.a.wdata;
 
     assign a_chan_read_out.addr = obi_in_req_i.a.addr;
-    // assign a_chan_read_out.aid = obi_in_req_i.a.aid;
     assign a_chan_read_out.aid = rsp_reorder_idx_tail_q;
 
 
@@ -344,24 +348,31 @@ module slink_prot_layer #(
 
 
     always_comb begin : rx_redirector
-
         rx_type = slink_pkg::RxNone;
 
         if (axis_in_req_i.tvalid) begin
             if (payload_in.src_id == node_id_i) begin
-                rx_type = slink_pkg::RxLoop;
+                // Loop: packet originated from us and came back around the ring.
+                // Validate the header tag since loop handling reads aid/rid fields.
+                unique case (payload_in.hdr)
+                    slink_pkg::TagARead,
+                    slink_pkg::TagAWrite,
+                    slink_pkg::TagRRead,
+                    slink_pkg::TagRWrite: rx_type = slink_pkg::RxLoop;
+                    default:              rx_type = slink_pkg::RxError;
+                endcase
             end else if (payload_in.dst_id == node_id_i) begin
                 unique case (payload_in.hdr)
                     slink_pkg::TagARead:  rx_type = slink_pkg::RxIncomingARead;
                     slink_pkg::TagAWrite: rx_type = slink_pkg::RxIncomingAWrite;
                     slink_pkg::TagRRead:  rx_type = slink_pkg::RxIncomingRRead;
                     slink_pkg::TagRWrite: rx_type = slink_pkg::RxIncomingRWrite;
-                    default:         rx_type = slink_pkg::RxError;
+                    default:              rx_type = slink_pkg::RxError;
                 endcase
-            // TODO enforce loop must be a correct payload since we need to read ID
-            end else if (payload_in.src_id == node_id_i) begin
-                rx_type = slink_pkg::RxLoop;
-            end else if (payload_in.hdr == slink_pkg::TagARead || payload_in.hdr == slink_pkg::TagAWrite || payload_in.hdr == slink_pkg::TagRRead || payload_in.hdr == slink_pkg::TagRWrite) begin
+            end else if (payload_in.hdr == slink_pkg::TagARead
+                      || payload_in.hdr == slink_pkg::TagAWrite
+                      || payload_in.hdr == slink_pkg::TagRRead
+                      || payload_in.hdr == slink_pkg::TagRWrite) begin
                 rx_type = slink_pkg::RxTransit;
             end else begin
                 rx_type = slink_pkg::RxError;
@@ -429,7 +440,7 @@ module slink_prot_layer #(
         if (rsp_reorder_out_valid[rsp_reorder_idx_head_q]) begin
             obi_in_rsp_o = rsp_reorder_out_data[rsp_reorder_idx_head_q];
             rsp_reorder_out_ready[rsp_reorder_idx_head_q] = 1'b1;
-            rsp_reorder_idx_head_d = `INCR_WRAP(rsp_reorder_idx_head_q, MAX_OUTSTANDING_OUT);
+            rsp_reorder_idx_head_d = incr_wrap(rsp_reorder_idx_head_q);
             rsp_reorder_idx_pending_d[rsp_reorder_idx_head_q] = 1'b0;
         end
 
@@ -475,7 +486,7 @@ module slink_prot_layer #(
             rsp_reorder_in_valid[rsp_reorder_idx_tail_q] = 1'b1;
             rsp_reorder_in_data [rsp_reorder_idx_tail_q] = obi_rsp_pack(1'b1, '0, tx_cmd.aid, 1'b1, '0);
 
-            rsp_reorder_idx_tail_d = `INCR_WRAP(rsp_reorder_idx_tail_q, MAX_OUTSTANDING_OUT);
+            rsp_reorder_idx_tail_d = incr_wrap(rsp_reorder_idx_tail_q);
             rsp_reorder_idx_pending_d[rsp_reorder_idx_tail_q] = 1'b1;
         end
 
@@ -488,7 +499,7 @@ module slink_prot_layer #(
                 tx_fifo_valid_in = 1'b1;
                 obi_in_rsp_o.gnt = 1'b1; // TODO this is fragile because depends on order when obi_in_rsp_o = rsp_reorder_out_data[rsp_reorder_idx_head_q] also entered
                 rsp_reorder_ids_d[rsp_reorder_idx_tail_q] = tx_cmd.aid;
-                rsp_reorder_idx_tail_d = `INCR_WRAP(rsp_reorder_idx_tail_q, MAX_OUTSTANDING_OUT);
+                rsp_reorder_idx_tail_d = incr_wrap(rsp_reorder_idx_tail_q);
                 rsp_reorder_idx_pending_d[rsp_reorder_idx_tail_q] = 1'b1;
 
             end else if (tx_cmd.tx_type == slink_pkg::TxTransit) begin

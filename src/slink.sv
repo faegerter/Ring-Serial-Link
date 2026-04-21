@@ -147,9 +147,7 @@ module slink
         .r_chan_write_t ( r_chan_write_t ),
         .r_chan_read_t  ( r_chan_read_t  ),
         .slink_obi_cfg  ( slink_obi_cfg  ),
-        .payload_t      ( payload_t      ),
-        .credit_t       ( credit_t       ),
-        .PayloadSplits  ( PayloadSplits  )
+        .payload_t      ( payload_t      )
     ) i_serial_link_protocol (
         .clk_i          ( clk_i        ),
         .rst_ni         ( rst_ni       ),
@@ -161,8 +159,7 @@ module slink
         .axis_in_req_i  ( axis_in_req     ),
         .axis_in_rsp_o  ( axis_in_rsp     ),
         .axis_out_req_o ( axis_out_req    ),
-        .axis_out_rsp_i ( axis_out_rsp    ),
-        .credits_out_i  ( credits_out     )
+        .axis_out_rsp_i ( axis_out_rsp    )
     );
 
     /////////////////////////
