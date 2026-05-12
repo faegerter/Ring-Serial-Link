@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: SHL-0.51
 
 // Author: Tim Fischer <fischeti@iis.ee.ethz.ch>
+// Author: Llorenç Muela Hausmann <lmuela@ethz.ch>
+// Author: Fabian Aegerter <faegerter@ethz.ch>
 
 `include "common_cells/registers.svh"
 `include "common_cells/assertions.svh"
@@ -86,6 +88,9 @@ module slink_link_layer #(
   logic raw_mode_fifo_full, raw_mode_fifo_empty;
   logic raw_mode_fifo_push, raw_mode_fifo_pop;
   phy_data_t raw_mode_fifo_data_in, raw_mode_fifo_data_out;
+  logic      [NumChannels-1:0]     raw_mode_data_in_ready;
+  logic      [NumChannels-1:0]     raw_mode_data_out_valid;
+  phy_data_t [NumChannels-1:0]     raw_mode_data_out;
 
   credit_t credits_out_q, credits_out_d;
   credit_t credits_to_send_q, credits_to_send_d;
@@ -93,9 +98,19 @@ module slink_link_layer #(
   logic credit_in_ready, credit_in;
 
 
-  logic en_rx_tx_bypass_q, en_rx_tx_bypass_d;
+  logic en_rx_tx_bypass;
+  phy_data_t [NumChannels-1:0]     bypass_data_out;
+  logic      [NumChannels-1:0]     bypass_data_out_valid; 
+  logic [$clog2(PayloadSplits)-1:0] bypass_payload_split_index_q, bypass_payload_split_index_d;
+  logic [$clog2(PayloadSplits*NumChannels*NumLanes*(1+EnDdr)):0]  bypass_payload_size_q, bypass_payload_size_d;
+  logic      [NumChannels-1:0]     bypass_data_in_ready;
+  logic rx_tx_bypass_active_q, rx_tx_bypass_active_d;
 
-  logic [NumChannels-1:0] data_out_valid;
+  logic      [NumChannels-1:0]     rx_data_in_ready;
+
+
+  logic      [NumChannels-1:0]     tx_data_out_valid; 
+  phy_data_t [NumChannels-1:0]     tx_data_out;
 
 
   //Datatype for the stream fifo and register
@@ -119,178 +134,198 @@ module slink_link_layer #(
   end
 
 
-  always_comb begin
-    recv_reg_in_valid = '0;
-    data_in_ready_o = '0;
-    recv_reg_in_data = '0;
-    recv_reg_index_d = recv_reg_index_q;
-    recv_reg_payload_size_d = recv_reg_payload_size_q;
-    axis_out_req_o.tvalid = 1'b0;
-    axis_out_req_o.t.data = recv_reg_data;
-    recv_reg_out_ready = '0;
-    cfg_raw_mode_in_data_o = '0;
-    cfg_raw_mode_in_data_valid_o = '0;
-    axis_in_rsp_o.tready = 1'b0;
-    data_out_o = '0;
-    data_out_valid= '0;
-    link_out_index_d = link_out_index_q;
-    link_state_d = link_state_q;
-    raw_mode_fifo_pop = 1'b0;
-    en_rx_tx_bypass_d = en_rx_tx_bypass_q;
-    link_out_payload_size_d = link_out_payload_size_q;
 
-
-
-    if (cfg_raw_mode_en_i) begin
-      // Raw mode
-      cfg_raw_mode_in_data_valid_o = data_in_valid_i;
-      // Ready is asserted if there is a read access
-      if (cfg_raw_mode_in_data_ready_i) begin
-        // Select channel to read from and wait for valid data
-        if (data_in_valid_i[cfg_raw_mode_in_ch_sel_i]) begin
-          // Pop item from CDC RX FIFO
-          data_in_ready_o[cfg_raw_mode_in_ch_sel_i] = 1'b1;
-          // respond with data from selected channel
-          cfg_raw_mode_in_data_o = data_in_i[cfg_raw_mode_in_ch_sel_i];
-        end else begin
-          // TODO: send out Error response
-        end
-      end
-      if (cfg_raw_mode_out_en_i & ~raw_mode_fifo_empty) begin
-        data_out_valid = cfg_raw_mode_out_ch_mask_i;
-        data_out_o = {{NumChannels}{raw_mode_fifo_data_out}};
-        if (data_out_ready_i) begin
-          raw_mode_fifo_pop = 1'b1;
-        end
-      end
-    end 
+    always_comb begin : raw_mode
     
-    else begin
+      raw_mode_data_in_ready = '0;
+      raw_mode_data_out_valid = '0;
+      raw_mode_data_out = '0;
+      raw_mode_fifo_pop = 1'b0;
+      cfg_raw_mode_in_data_o = '0;
+      cfg_raw_mode_in_data_valid_o = '0;
 
-
-      ///////////////////////////////
-      //   PROTOCOL LAYER BYPASS   //
-      ///////////////////////////////
-
-      if((&data_in_valid_i) && recv_reg_index_q == 0 && (axis_in_req_i.tvalid == 1'b0) && (data_in_i[0][$bits(slink_pkg::tag_e)+3:$bits(slink_pkg::tag_e)] != node_id_i)) begin
-        en_rx_tx_bypass_d = 1'b1;
-      end 
-
-      if(en_rx_tx_bypass_d && (&data_in_valid_i))begin
-        data_out_valid = '1;
-        data_out_o = data_in_i;
-        if(data_out_ready_i)begin 
-          if(recv_reg_index_q == 0)begin 
-          unique case(slink_pkg::tag_e'(data_in_i[0][$bits(slink_pkg::tag_e)-1:0]))
-            slink_pkg::TagAWrite: 
-                begin 
-                  recv_reg_payload_size_d = AChannelWritePayloadSplits;
-                end
-            slink_pkg::TagARead:  
-                begin 
-                  recv_reg_payload_size_d = AChannelReadPayloadSplits; 
-                end
-            slink_pkg::TagRWrite:
-                begin
-                  recv_reg_payload_size_d = RChannelWritePayloadSplits;
-                end
-            slink_pkg::TagRRead:
-                begin
-                  recv_reg_payload_size_d = RChannelReadPayloadSplits;
-                end 
-            default:
-                begin
-                  recv_reg_payload_size_d = 1;
-                end
-          endcase
-          end
-
-          data_in_ready_o = {NumChannels{&data_in_valid_i}};
-
-          if (recv_reg_index_q == recv_reg_payload_size_d - 1) begin 
-            recv_reg_index_d = 0;
-            en_rx_tx_bypass_d = 1'b0;
-          end else begin 
-            recv_reg_index_d = recv_reg_index_q + 1;
+      if (cfg_raw_mode_en_i) begin
+        // Raw mode
+        cfg_raw_mode_in_data_valid_o = data_in_valid_i;
+        // Ready is asserted if there is a read access
+        if (cfg_raw_mode_in_data_ready_i) begin
+          // Select channel to read from and wait for valid data
+          if (data_in_valid_i[cfg_raw_mode_in_ch_sel_i]) begin
+            // Pop item from CDC RX FIFO
+            raw_mode_data_in_ready[cfg_raw_mode_in_ch_sel_i] = 1'b1;
+            // respond with data from selected channel
+            cfg_raw_mode_in_data_o = data_in_i[cfg_raw_mode_in_ch_sel_i];
+          end else begin
+            // TODO: send out Error response
           end
         end
-      end else begin 
+        if (cfg_raw_mode_out_en_i & ~raw_mode_fifo_empty) begin
+          raw_mode_data_out_valid = cfg_raw_mode_out_ch_mask_i;
+          raw_mode_data_out = {{NumChannels}{raw_mode_fifo_data_out}};
+          if (data_out_ready_i) begin
+            raw_mode_fifo_pop = 1'b1;
+          end
+        end
+      end 
+    end
+
+
+    assign en_rx_tx_bypass = (rx_tx_bypass_active_q == 0) && (&data_in_valid_i) && recv_reg_index_q == 0 && (axis_in_req_i.tvalid == 1'b0) && (data_in_i[0][$bits(slink_pkg::tag_e)+slink_reg_pkg::Log2MaxNodeIds-1:$bits(slink_pkg::tag_e)] != node_id_i);
+
+
+    always_comb begin : protocol_bypass 
+      bypass_data_out = '0;
+      bypass_data_out_valid = '0;
+      bypass_payload_split_index_d = bypass_payload_split_index_q;
+      bypass_payload_size_d = bypass_payload_size_q;
+      bypass_data_in_ready = '0;
+      rx_tx_bypass_active_d = rx_tx_bypass_active_q;
+
+      if(!cfg_raw_mode_en_i) begin  
+        if((en_rx_tx_bypass || rx_tx_bypass_active_d) && (&data_in_valid_i))begin
+          rx_tx_bypass_active_d = 1'b1;
+          bypass_data_out_valid = '1;
+          bypass_data_out = data_in_i;
+          if(data_out_ready_i)begin 
+            if(bypass_payload_split_index_q == 0)begin 
+            unique case(slink_pkg::tag_e'(data_in_i[0][$bits(slink_pkg::tag_e)-1:0]))
+              slink_pkg::TagAWrite: 
+                  begin 
+                    bypass_payload_size_d = AChannelWritePayloadSplits;
+                  end
+              slink_pkg::TagARead:  
+                  begin 
+                    bypass_payload_size_d = AChannelReadPayloadSplits; 
+                  end
+              slink_pkg::TagRWrite:
+                  begin
+                    bypass_payload_size_d = RChannelWritePayloadSplits;
+                  end
+              slink_pkg::TagRRead:
+                  begin
+                    bypass_payload_size_d = RChannelReadPayloadSplits;
+                  end 
+              default:
+                  begin
+                    bypass_payload_size_d = 1;
+                  end
+            endcase
+            end
+
+            bypass_data_in_ready = {NumChannels{&data_in_valid_i}};
+
+            if (bypass_payload_split_index_q == bypass_payload_size_d - 1) begin 
+              bypass_payload_split_index_d = 0;
+              rx_tx_bypass_active_d = 1'b0;
+            end else begin 
+              bypass_payload_split_index_d = bypass_payload_split_index_q + 1;
+            end
+          end
+        end
+      end
+    end
+
+  `FF(rx_tx_bypass_active_q, rx_tx_bypass_active_d, 0)
+  `FF(bypass_payload_split_index_q, bypass_payload_split_index_d, '0)
+  `FF(bypass_payload_size_q, bypass_payload_size_d, '0)
+
+
 
 
       /////////////////
       //   DATA IN   //
       /////////////////
 
+    always_comb begin : protocol_rx_data_in
+      rx_data_in_ready = '0;
+      recv_reg_in_valid = '0;
+      recv_reg_in_data = '0;
+      recv_reg_index_d = recv_reg_index_q;
+      recv_reg_payload_size_d = recv_reg_payload_size_q;
+      axis_out_req_o.tvalid = 1'b0;
+      axis_out_req_o.t.data = recv_reg_data;
+      recv_reg_out_ready = '0;
 
-      // Normal operating mode
-      // If all inputs of each channel have valid data, push it to fifo
-      // Pop from Fifo and assemble in register
-      if (&data_in_valid_i && recv_reg_in_ready[recv_reg_index_q]) begin
-        if(recv_reg_index_q == 0)begin 
-          unique case(slink_pkg::tag_e'(data_in_i[0][$bits(slink_pkg::tag_e)-1:0]))
-            slink_pkg::TagAWrite: 
-                begin 
-                  recv_reg_payload_size_d = AChannelWritePayloadSplits;
-                  for (int i = AChannelWritePayloadSplits; i < PayloadSplits; i++) begin
-                    recv_reg_in_data[i] = '0;
-                    recv_reg_in_valid[i] = 1'b1;
-                  end
-                end
-            slink_pkg::TagARead:  
-                begin 
-                  recv_reg_payload_size_d = AChannelReadPayloadSplits; 
-                  for (int i = AChannelReadPayloadSplits; i < PayloadSplits; i++) begin
-                    recv_reg_in_data[i] = '0;
-                    recv_reg_in_valid[i] = 1'b1;
-                  end
-                end
-            slink_pkg::TagRWrite:
-                begin
-                  recv_reg_payload_size_d = RChannelWritePayloadSplits;
-                  for (int i = RChannelWritePayloadSplits; i < PayloadSplits; i++) begin
-                    recv_reg_in_data[i] = '0;
-                    recv_reg_in_valid[i] = 1'b1;
-                  end
-                end
-            slink_pkg::TagRRead:
-                begin
-                  recv_reg_payload_size_d = RChannelReadPayloadSplits;
-                  for (int i = RChannelReadPayloadSplits; i < PayloadSplits; i++) begin
-                    recv_reg_in_data[i] = '0;
-                    recv_reg_in_valid[i] = 1'b1;
-                  end
-                end 
-            default:
-                begin
-                  recv_reg_payload_size_d = 1;
-                  if(PayloadSplits > 1) 
-                    begin
-                      recv_reg_in_data[PayloadSplits-1:1] = '0;
-                      recv_reg_in_valid[PayloadSplits-1:1] = '1;
+      if(!(cfg_raw_mode_en_i || en_rx_tx_bypass || rx_tx_bypass_active_q)) begin
+        // Normal operating mode
+        // If all inputs of each channel have valid data, push it to fifo
+        // Pop from Fifo and assemble in register
+        if (&data_in_valid_i && recv_reg_in_ready[recv_reg_index_q]) begin
+          if(recv_reg_index_q == 0)begin 
+            unique case(slink_pkg::tag_e'(data_in_i[0][$bits(slink_pkg::tag_e)-1:0]))
+              slink_pkg::TagAWrite: 
+                  begin 
+                    recv_reg_payload_size_d = AChannelWritePayloadSplits;
+                    for (int i = AChannelWritePayloadSplits; i < PayloadSplits; i++) begin
+                      recv_reg_in_data[i] = '0;
+                      recv_reg_in_valid[i] = 1'b1;
                     end
-                end
-          endcase
+                  end
+              slink_pkg::TagARead:  
+                  begin 
+                    recv_reg_payload_size_d = AChannelReadPayloadSplits; 
+                    for (int i = AChannelReadPayloadSplits; i < PayloadSplits; i++) begin
+                      recv_reg_in_data[i] = '0;
+                      recv_reg_in_valid[i] = 1'b1;
+                    end
+                  end
+              slink_pkg::TagRWrite:
+                  begin
+                    recv_reg_payload_size_d = RChannelWritePayloadSplits;
+                    for (int i = RChannelWritePayloadSplits; i < PayloadSplits; i++) begin
+                      recv_reg_in_data[i] = '0;
+                      recv_reg_in_valid[i] = 1'b1;
+                    end
+                  end
+              slink_pkg::TagRRead:
+                  begin
+                    recv_reg_payload_size_d = RChannelReadPayloadSplits;
+                    for (int i = RChannelReadPayloadSplits; i < PayloadSplits; i++) begin
+                      recv_reg_in_data[i] = '0;
+                      recv_reg_in_valid[i] = 1'b1;
+                    end
+                  end 
+              default:
+                  begin
+                    recv_reg_payload_size_d = 1;
+                    if(PayloadSplits > 1) 
+                      begin
+                        recv_reg_in_data[PayloadSplits-1:1] = '0;
+                        recv_reg_in_valid[PayloadSplits-1:1] = '1;
+                      end
+                  end
+            endcase
+          end
+          recv_reg_in_data[recv_reg_index_q] = data_in_i;
+          recv_reg_in_valid[recv_reg_index_q] = 1'b1;
+          rx_data_in_ready = {NumChannels{&data_in_valid_i}};
+          // Increment recv reg counter
+          recv_reg_index_d = (recv_reg_index_q == recv_reg_payload_size_d - 1) ? 0 : recv_reg_index_q + 1;
         end
-        recv_reg_in_data[recv_reg_index_q] = data_in_i;
-        recv_reg_in_valid[recv_reg_index_q] = 1'b1;
-        data_in_ready_o = {NumChannels{&data_in_valid_i}};
-        // Increment recv reg counter
-        recv_reg_index_d = (recv_reg_index_q == recv_reg_payload_size_d - 1) ? 0 : recv_reg_index_q + 1;
+
+        // Once all Recv Stream Registers are filled -> generate AXI stream request
+        axis_out_req_o.tvalid = &recv_reg_out_valid;
+        recv_reg_out_ready = {PayloadSplits{axis_out_rsp_i.tready}};
       end
-    
-      // Once all Recv Stream Registers are filled -> generate AXI stream request
-      axis_out_req_o.tvalid = &recv_reg_out_valid;
-      recv_reg_out_ready = {PayloadSplits{axis_out_rsp_i.tready}};
-    
+    end
 
+  `FF(recv_reg_payload_size_q, recv_reg_payload_size_d, '0)
+  `FF(recv_reg_index_q, recv_reg_index_d, '0)
 
+     //////////////////
+     //   DATA OUT   //
+     //////////////////
 
+    always_comb begin : protocol_tx_data_out
+      tx_data_out = '0;
+      tx_data_out_valid = '0;
+      axis_in_rsp_o.tready = 1'b0;
+      link_out_index_d = link_out_index_q;
+      link_state_d = link_state_q;
+      link_out_payload_size_d = link_out_payload_size_q;
 
-      //////////////////
-      //   DATA OUT   //
-      //////////////////
-
-      unique case (link_state_q)
+      if(!(cfg_raw_mode_en_i || en_rx_tx_bypass || rx_tx_bypass_active_q)) begin
+        unique case (link_state_q)
           LinkSendIdle: begin
             if (axis_in_req_i.tvalid) begin
               unique case(slink_pkg::tag_e'(axis_in_req_i.t.data[1:0]))
@@ -301,8 +336,8 @@ module slink_link_layer #(
                 default:    link_out_payload_size_d = 1;
               endcase
               link_out_index_d = NumChannels * NumLanes * (1 + EnDdr);
-              data_out_valid = '1;
-              data_out_o = axis_in_req_i.t.data;
+              tx_data_out_valid = '1;
+              tx_data_out = axis_in_req_i.t.data;
               if (data_out_ready_i) begin
                 link_state_d = LinkSendBusy;
                 if (link_out_index_d >= link_out_payload_size_d) begin
@@ -314,8 +349,8 @@ module slink_link_layer #(
           end
 
           LinkSendBusy: begin 
-            data_out_valid = '1;
-            data_out_o = axis_in_req_i.t.data >> link_out_index_q;
+            tx_data_out_valid = '1;
+            tx_data_out = axis_in_req_i.t.data >> link_out_index_q;
             if (data_out_ready_i) begin
               link_out_index_d = link_out_index_q + NumChannels * NumLanes * (1 + EnDdr);
               if (link_out_index_d >= link_out_payload_size_q) begin
@@ -328,11 +363,41 @@ module slink_link_layer #(
         endcase
       end
     end
-  end
-  `FF(link_out_payload_size_q, link_out_payload_size_d, '0)
-  `FF(recv_reg_payload_size_q, recv_reg_payload_size_d, '0)
-  `FF(recv_reg_index_q, recv_reg_index_d, '0)
-  `FF(en_rx_tx_bypass_q, en_rx_tx_bypass_d, '0)
+
+    `FF(link_out_index_q, link_out_index_d, '0)
+    `FF(link_state_q, link_state_d, LinkSendIdle)
+    `FF(link_out_payload_size_q, link_out_payload_size_d, '0)
+
+
+
+    //Multiplexing Protocol RX Data in, Protocol Bypass and Raw mode signals
+    always_comb begin : rx_bypass_raw_mode_mux 
+      data_in_ready_o = '0;
+      if (cfg_raw_mode_en_i) begin data_in_ready_o = raw_mode_data_in_ready;
+      end else if (en_rx_tx_bypass || rx_tx_bypass_active_q) begin data_in_ready_o = bypass_data_in_ready;
+      end else begin data_in_ready_o = rx_data_in_ready; end
+    end
+
+
+
+    //Multiplexing Protocol TX Data out. Protocol Bypass and Raw mode signals
+    always_comb begin : tx_bypass_raw_mode_mux
+      data_out_valid_o = '0;
+      data_out_o = '0;
+
+      if (cfg_raw_mode_en_i) begin
+        data_out_o = raw_mode_data_out;
+        data_out_valid_o = (credits_out_q != '0) ? raw_mode_data_out_valid : '0; 
+      end else if(en_rx_tx_bypass || rx_tx_bypass_active_q) begin
+        data_out_o = bypass_data_out;
+        data_out_valid_o = (credits_out_q != '0) ? bypass_data_out_valid : '0;
+      end else begin
+        data_out_o = tx_data_out;
+        data_out_valid_o = (credits_out_q != '0) ? tx_data_out_valid : '0; 
+      end
+    end
+
+
 
   //////////////////////
   //   FLOW CONTROL   //
@@ -428,13 +493,13 @@ module slink_link_layer #(
     .data_o     ( raw_mode_fifo_data_out                  ),
     .pop_i      ( raw_mode_fifo_pop                       )
   );
-  assign data_out_valid_o = (credits_out_q != '0) ? data_out_valid : '0;
+
+
   assign cfg_raw_mode_out_data_fifo_is_full_o = raw_mode_fifo_full;
   assign raw_mode_fifo_push = cfg_raw_mode_out_data_valid_i & ~raw_mode_fifo_full;
   assign raw_mode_fifo_data_in = cfg_raw_mode_out_data_i;
   assign credits_out_o = credits_out_d;
 
-  `FF(link_out_index_q, link_out_index_d, '0)
-  `FF(link_state_q, link_state_d, LinkSendIdle)
+
 
 endmodule
