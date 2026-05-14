@@ -65,7 +65,7 @@ module tb_obi_slink;
   localparam obi_cfg_t ObiCfg = obi_default_cfg(
       ObiAddrWidth, ObiDataWidth, ObiIdWidth, ObiMinimalOptionalConfig);
   localparam slink_obi_cfg_t SlinkObiCfg = slink_obi_cfg(
-      ObiAddrWidth, ObiDataWidth, ObiDataWidth, ObiIdWidth, UseByteEnable, UseOptional);
+      ObiAddrWidth, ObiDataWidth, ObiDataWidth, ObiIdWidth, ObiIdWidth, UseByteEnable, UseOptional);
 
   `OBI_TYPEDEF_DEFAULT_ALL(obi, ObiCfg)
   `SLINK_OBI_TYPEDEF_DEFAULT(slink_obi, SlinkObiCfg)
@@ -191,8 +191,10 @@ module tb_obi_slink;
 
       // SLINK instance
       slink #(
-          .obi_req_t       ( obi_req_t               ),
-          .obi_rsp_t       ( obi_rsp_t               ),
+          .obi_req_mgr_t   ( obi_req_t                ),
+          .obi_rsp_mgr_t   ( obi_rsp_t                ),
+          .obi_req_sbr_t   ( obi_req_t                ),
+          .obi_rsp_sbr_t   ( obi_rsp_t                ),
           .a_optional_t    ( obi_a_optional_t         ),
           .r_optional_t    ( obi_r_optional_t         ),
           .a_chan_write_t  ( slink_obi_a_chan_write_t ),
@@ -333,12 +335,15 @@ module tb_obi_slink;
 
         fork
           begin : wr_sender
-            for (int d = 0; d < NumNodes; d++)
+            for (int d = 0; d < NumNodes; d++) begin
+              if (i == d) continue;
               for (int t = 0; t < TestDuration; t++)
                 mgr.send_a(waddr[d][t], 1'b1, 4'b1111, wdata[d][t], obi_id_t'(t[0]), '0);
+            end
           end
           begin : wr_collector
             for (int d = 0; d < NumNodes; d++) begin
+              if (i == d) continue;
               for (int t = 0; t < TestDuration; t++) begin
                 automatic data_t           rdata;
                 automatic obi_id_t         rid;
@@ -346,13 +351,10 @@ module tb_obi_slink;
                 automatic obi_r_optional_t r_opt;
                 mgr.recv_r(rdata, rid, err, r_opt);
                 node_checks[i]++;
-                if (err && i != d) begin
+                if (err) begin
                   $error("[WR Node %0d->%0d] t=%0d addr=0x%08X: unexpected err=1 on write response", i, d, t, waddr[d][t]);
                   local_errs++;
-                end else if (!err && i == d) begin
-                  $error("[WR Node %0d->%0d] t=%0d addr=0x%08X: unexpected err=0 on write response", i, d, t, waddr[d][t]);
-                  local_errs++;
-                end
+                end 
               end
             end
           end
@@ -370,12 +372,15 @@ module tb_obi_slink;
         // ==========================================================
         fork
           begin : rd_sender
-            for (int d = 0; d < NumNodes; d++)
+            for (int d = 0; d < NumNodes; d++) begin
+              if (i == d) continue;
               for (int t = 0; t < TestDuration; t++)
                 mgr.send_a(waddr[d][t], 1'b0, 4'b1111, '0, obi_id_t'(t[0]), '0);
+            end
           end
           begin : rd_collector
             for (int d = 0; d < NumNodes; d++) begin
+              if (i == d) continue;
               for (int t = 0; t < TestDuration; t++) begin
                 automatic data_t           rdata;
                 automatic obi_id_t         rid;
@@ -384,13 +389,10 @@ module tb_obi_slink;
                 automatic int unsigned     w = src_node * TestDuration + t;
                 mgr.recv_r(rdata, rid, err, r_opt);
                 node_checks[i]++;
-                if (err && i != d) begin
+                if (err) begin
                   $error("[RD Node %0d<-%0d] t=%0d addr=0x%08X: unexpected err=1 on read response", i, d, t, waddr[d][t]);
                   local_errs++;
-                end else if ((!err) && i == d) begin
-                  $error("[RD Node %0d<-%0d] t=%0d addr=0x%08X: unexpected err=0 on read response", i, d, t, waddr[d][t]);
-                  local_errs++;
-                end else if (rdata !== expected_mem[d][w] && i != d) begin
+                end else if (rdata !== expected_mem[d][w]) begin
                   $error("[RD Node %0d<-%0d] t=%0d addr=0x%08X: DATA MISMATCH got=0x%08X exp=0x%08X", i, d, t, waddr[d][t], rdata, expected_mem[d][w]);
                   local_errs++;
                 end

@@ -235,7 +235,8 @@ module slink
         .cfg_raw_mode_out_data_fifo_is_full_o    ( raw_mode_out_data_is_full ),
         .credit_recv_clk_i                       ( credit_recv_clk_i                                ),
         .credit_rtrn_clk_o                       ( credit_rtrn_clk_o                                ),
-        .credits_out_o                           ( credits_out                                      )
+        .credits_out_o                           ( credits_out                                      ),
+        .node_id_i                               ( reg2hw.node_id.node_id.value                     )
     );
 
 

@@ -212,6 +212,10 @@ module slink_prot_layer #(
     a_chan_write_t a_chan_write_out;
     a_chan_read_t  a_chan_read_out;
 
+    a_chan_write_t a_chan_write_loc;
+    a_chan_read_t  a_chan_read_loc;
+
+
     r_chan_write_t r_chan_write_in;
     r_chan_read_t  r_chan_read_in;
     a_chan_write_t a_chan_write_in;

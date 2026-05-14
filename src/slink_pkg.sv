@@ -55,7 +55,7 @@ package slink_pkg;
       AddrWidth:       AddrWidth,
       DataWidth:       DataWidth,
       RDataWidth:      RDataWidth,
-      IDWidth:         AIDWidth > RIDWidth ? AIDWidth : RIDWidth,,
+      IDWidth:         AIDWidth > RIDWidth ? AIDWidth : RIDWidth,
       UseByteEnable:   UseByteEnable,
       UseOptional:     UseOptional
     };
