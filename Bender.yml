@@ -42,6 +42,7 @@ sources:
     - src/slink_prot_layer.sv
     - src/slink_link_layer.sv
     - src/slink_phys_layer.sv
+    - src/slink_rsp_reorder.sv
 
     # Serial Link main module
     - include_dirs:
