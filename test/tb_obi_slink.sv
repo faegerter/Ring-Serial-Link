@@ -62,6 +62,11 @@ module tb_obi_slink;
   localparam bit          UseByteEnable = 1;
   localparam bit          UseOptional   = 0;
 
+  localparam int unsigned TxFifoDepth    = 3;
+  localparam int unsigned MaxOutstandingReqIn = 2;
+  localparam int unsigned MaxInflightReqOut = 2;
+  localparam int unsigned NodeIdWidth = 4;
+
   localparam obi_cfg_t ObiCfg = obi_default_cfg(
       ObiAddrWidth, ObiDataWidth, ObiIdWidth, ObiMinimalOptionalConfig);
   localparam slink_obi_cfg_t SlinkObiCfg = slink_obi_cfg(
@@ -191,10 +196,15 @@ module tb_obi_slink;
 
       // SLINK instance
       slink #(
+          .TxFifoDepth     ( TxFifoDepth    ),
+          .MaxOutstandingReqIn ( MaxOutstandingReqIn ),
+          .MaxInflightReqOut ( MaxInflightReqOut ),
+          .NodeIdWidth     ( NodeIdWidth    ),
           .obi_req_mgr_t   ( obi_req_t                ),
           .obi_rsp_mgr_t   ( obi_rsp_t                ),
           .obi_req_sbr_t   ( obi_req_t                ),
           .obi_rsp_sbr_t   ( obi_rsp_t                ),
+          .obi_r_chan_sbr_t( obi_r_chan_t             ),
           .a_optional_t    ( obi_a_optional_t         ),
           .r_optional_t    ( obi_r_optional_t         ),
           .a_chan_write_t  ( slink_obi_a_chan_write_t ),

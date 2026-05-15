@@ -22,11 +22,16 @@ module slink
 #(  
     //Size of the RecvFfifo Buffer in payloads
     parameter int RecvFifoPayloadDepfth = 8,
-    parameter int ObiAddrWidth      = 32,
+    parameter int ObiAddrWidth          = 32,
+    parameter int  TxFifoDepth          = 3,
+    parameter int  MaxOutstandingReqIn  = 2,
+    parameter int  MaxInflightReqOut    = 2,
+    parameter int  NodeIdWidth          = 4,
     parameter type obi_req_mgr_t  = logic,
     parameter type obi_rsp_mgr_t  = logic,
     parameter type obi_req_sbr_t  = logic,
     parameter type obi_rsp_sbr_t  = logic,
+    parameter type obi_r_chan_sbr_t = logic,
     parameter type a_optional_t  = logic,
     parameter type r_optional_t  = logic,
     parameter type a_chan_write_t   = logic,
@@ -103,8 +108,6 @@ module slink
 
     `AXI_STREAM_TYPEDEF_ALL(axis, tdata_t, tstrb_t, tkeep_t, tid_t, tdest_t, tuser_t)
 
-    logic       obi_reg_rready;
-
     axis_req_t  axis_out_req, axis_in_req;
     axis_rsp_t  axis_out_rsp, axis_in_rsp;
 
@@ -134,10 +137,15 @@ module slink
     ////////////////////////
 
     slink_prot_layer #(
+        .TxFifoDepth    ( TxFifoDepth    ),
+        .MaxOutstandingReqIn ( MaxOutstandingReqIn ),
+        .MaxInflightReqOut ( MaxInflightReqOut ),
+        .NodeIdWidth    ( NodeIdWidth    ),
         .obi_req_mgr_t  ( obi_req_mgr_t ),
         .obi_rsp_mgr_t  ( obi_rsp_mgr_t ),
         .obi_req_sbr_t  ( obi_req_sbr_t ),
         .obi_rsp_sbr_t  ( obi_rsp_sbr_t ),
+        .obi_r_chan_sbr_t ( obi_r_chan_sbr_t ),
         .a_optional_t   ( a_optional_t  ),
         .r_optional_t   ( r_optional_t  ),
         .axis_req_t     ( axis_req_t    ),
@@ -385,7 +393,7 @@ module slink
         .s_obi_wdata  ( obi_reg_req_i.a.wdata  ),
         .s_obi_aid    ( obi_reg_req_i.a.aid    ),
         .s_obi_rvalid ( obi_reg_rsp_o.rvalid   ),
-        .s_obi_rready ( obi_reg_rready         ),
+        .s_obi_rready ( 1'b1                   ),
         .s_obi_rdata  ( obi_reg_rsp_o.r.rdata  ),
         .s_obi_err    ( obi_reg_rsp_o.r.err    ),
         .s_obi_rid    ( obi_reg_rsp_o.r.rid    ),
@@ -396,7 +404,6 @@ module slink
     //TODO remove the rready in the cfg regs and then remove the r.optional
     always_comb begin
         obi_reg_rsp_o.r.r_optional = '0;
-        obi_reg_rready = '1;
     end
 
 

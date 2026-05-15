@@ -10,10 +10,10 @@
 
 
 module slink_prot_layer #(
-    parameter int  TX_FIFO_DEPTH = 3,
-    parameter int  MAX_OUTSTANDING_REQ_IN = 2,
-    parameter int  MAX_INFLIGHT_REQ_OUT = 2,
-    parameter int  NODE_ID_WIDTH = 4,
+    parameter int  TxFifoDepth = 3,
+    parameter int  MaxOutstandingReqIn = 2,
+    parameter int  MaxInflightReqOut = 2,
+    parameter int  NodeIdWidth = 4,
     parameter type obi_req_mgr_t  = logic,
     parameter type obi_rsp_mgr_t  = logic,
     parameter type obi_req_sbr_t  = logic,
@@ -32,7 +32,7 @@ module slink_prot_layer #(
 ) (
     input  logic      clk_i,
     input  logic      rst_ni,
-    input  logic[NODE_ID_WIDTH-1:0] node_id_i,
+    input  logic[NodeIdWidth-1:0] node_id_i,
     input  obi_req_sbr_t  obi_in_req_i,
     output obi_rsp_sbr_t  obi_in_rsp_o,
     output obi_req_mgr_t  obi_out_req_o,
@@ -45,11 +45,11 @@ module slink_prot_layer #(
 
     // TODO: We should truncate/expand when IdxWidth and IDWidth are not same
 
-    localparam int unsigned IdxWidth = (MAX_OUTSTANDING_REQ_IN > 1) ? $clog2(MAX_OUTSTANDING_REQ_IN) : 1;
-    localparam int unsigned TxFifoAddrDepth = (TX_FIFO_DEPTH > 1) ? $clog2(TX_FIFO_DEPTH) : 1;
-    localparam int unsigned TxFifoCntrDepth = (TX_FIFO_DEPTH > 1) ? $clog2(TX_FIFO_DEPTH+1) : 1;
-    localparam int unsigned InflightReqOutAddrDepth = (MAX_INFLIGHT_REQ_OUT > 1) ? $clog2(MAX_INFLIGHT_REQ_OUT) : 1;
-    localparam int unsigned InflightReqOutCntrDepth = (MAX_INFLIGHT_REQ_OUT > 1) ? $clog2(MAX_INFLIGHT_REQ_OUT+1) : 1;
+    localparam int unsigned IdxWidth = (MaxOutstandingReqIn > 1) ? $clog2(MaxOutstandingReqIn) : 1;
+    localparam int unsigned TxFifoAddrDepth = (TxFifoDepth > 1) ? $clog2(TxFifoDepth) : 1;
+    localparam int unsigned TxFifoCntrDepth = (TxFifoDepth > 1) ? $clog2(TxFifoDepth+1) : 1;
+    localparam int unsigned InflightReqOutAddrDepth = (MaxInflightReqOut > 1) ? $clog2(MaxInflightReqOut) : 1;
+    localparam int unsigned InflightReqOutCntrDepth = (MaxInflightReqOut > 1) ? $clog2(MaxInflightReqOut+1) : 1;
 
 
     typedef logic [slink_obi_cfg.IDWidth-1:0]     obi_id_t;
@@ -57,7 +57,7 @@ module slink_prot_layer #(
     typedef logic [slink_obi_cfg.DataWidth/8-1:0] obi_be_t;
     typedef logic [slink_obi_cfg.AddrWidth-1:0]   obi_addr_t;
 
-    typedef logic [NODE_ID_WIDTH-1:0] node_id_t;
+    typedef logic [NodeIdWidth-1:0] node_id_t;
 
     typedef logic [IdxWidth-1:0] rsp_reorder_idx_t;
 
@@ -95,11 +95,11 @@ module slink_prot_layer #(
     endfunction
 
     function automatic node_id_t get_node_id_from_addr(obi_addr_t addr);
-        return addr[slink_obi_cfg.AddrWidth-1 -: NODE_ID_WIDTH];
+        return addr[slink_obi_cfg.AddrWidth-1 -: NodeIdWidth];
     endfunction
 
     function automatic obi_addr_t get_local_addr(obi_addr_t addr);
-        return {{NODE_ID_WIDTH{1'b0}}, addr[slink_obi_cfg.AddrWidth-NODE_ID_WIDTH-1 : 0]};
+        return {{NodeIdWidth{1'b0}}, addr[slink_obi_cfg.AddrWidth-NodeIdWidth-1 : 0]};
     endfunction
 
     function automatic payload_t make_r_payload(
@@ -184,8 +184,8 @@ module slink_prot_layer #(
 
     logic rsp_reorder_full;
     rsp_reorder_idx_t rsp_reorder_tail_idx, rsp_reorder_head_idx;
-    obi_id_t [MAX_OUTSTANDING_REQ_IN-1:0] rsp_reorder_saved_aid;
-    // logic [MAX_OUTSTANDING_REQ_IN-1:0] rsp_reorder_pending;   // Not used
+    obi_id_t [MaxOutstandingReqIn-1:0] rsp_reorder_saved_aid;
+    // logic [MaxOutstandingReqIn-1:0] rsp_reorder_pending;   // Not used
     logic rsp_reorder_alloc;
     obi_id_t rsp_reorder_alloc_aid;
     logic rsp_reorder_fill_valid;
@@ -200,8 +200,8 @@ module slink_prot_layer #(
     logic self_req_pend_fill_d, self_req_pend_fill_q;
     rsp_reorder_idx_t self_req_pend_fill_idx_d, self_req_pend_fill_idx_q;
 
-    `FF(self_req_pend_fill_d, self_req_pend_fill_q, '0)
-    `FF(self_req_pend_fill_idx_d, self_req_pend_fill_idx_q, '0)
+    `FF(self_req_pend_fill_q, self_req_pend_fill_d, '0)
+    `FF(self_req_pend_fill_idx_q, self_req_pend_fill_idx_d, '0)
 
     ////////////////////////////
     //   OBI CHANNEL SIGNALS  //
@@ -211,9 +211,6 @@ module slink_prot_layer #(
     r_chan_read_t  r_chan_read_out;
     a_chan_write_t a_chan_write_out;
     a_chan_read_t  a_chan_read_out;
-
-    a_chan_write_t a_chan_write_loc;
-    a_chan_read_t  a_chan_read_loc;
 
 
     r_chan_write_t r_chan_write_in;
@@ -320,7 +317,7 @@ module slink_prot_layer #(
     ///////////////////////////
 
     fifo_v3 #(
-        .DEPTH  ( MAX_INFLIGHT_REQ_OUT    ),
+        .DEPTH  ( MaxInflightReqOut    ),
         .dtype  ( out_req_inflight_meta_t )
     ) i_out_req_inflight_fifo (
         .clk_i      ( clk_i                      ),
@@ -341,7 +338,7 @@ module slink_prot_layer #(
     /////////////////////////////
 
     slink_rsp_reorder #(
-        .MaxOutstanding ( MAX_OUTSTANDING_REQ_IN ),
+        .MaxOutstanding ( MaxOutstandingReqIn ),
         .obi_r_chan_t   ( obi_r_chan_sbr_t    ),
         .obi_id_t       ( obi_id_t            )
     ) i_rsp_reorder (
@@ -368,7 +365,7 @@ module slink_prot_layer #(
     /////////////////////////////
 
     stream_fifo #(
-        .DEPTH  ( TX_FIFO_DEPTH ),
+        .DEPTH  ( TxFifoDepth ),
         .T      ( payload_t     )
     ) i_axis_out_reg (
         .clk_i      ( clk_i              ),
@@ -468,10 +465,10 @@ module slink_prot_layer #(
         can_enqueue_tx       = 1'b0;
 
         tx_rsp_slots_needed = out_req_inflight_fifo_full 
-                            ? MAX_INFLIGHT_REQ_OUT 
+                            ? MaxInflightReqOut 
                             : out_req_inflight_fifo_fill_state + rx_has_incoming_a;
 
-        tx_fifo_free_slots  = TX_FIFO_DEPTH - tx_fifo_fill_state;
+        tx_fifo_free_slots  = TxFifoDepth - tx_fifo_fill_state;
 
         if (tx_fifo_ready_in) begin
             can_enqueue_tx       = tx_fifo_free_slots > tx_rsp_slots_needed;
@@ -705,7 +702,7 @@ module slink_prot_layer #(
     `ASSERT(TxOutRFIFOFull, obi_out_rsp_i.rvalid |-> !out_req_inflight_fifo_empty && tx_fifo_ready_in)
     `ASSERT(GntCommitMutex, !(obi_in_self_req_avbl && tx_meta.tx_type == slink_pkg::TxOutgoingA))
 
-    `ASSERT_INIT(TxFifoDeeperThanInflight, TX_FIFO_DEPTH > MAX_INFLIGHT_REQ_OUT)
-    `ASSERT_INIT(AddrWidthGreaterThanNodeId, slink_obi_cfg.AddrWidth > NODE_ID_WIDTH)
+    `ASSERT_INIT(TxFifoDeeperThanInflight, TxFifoDepth > MaxInflightReqOut)
+    `ASSERT_INIT(AddrWidthGreaterThanNodeId, slink_obi_cfg.AddrWidth > NodeIdWidth)
     `ASSERT_INIT(IdWidthGeqThanIdxWidth, slink_obi_cfg.IDWidth >= IdxWidth)
 endmodule
