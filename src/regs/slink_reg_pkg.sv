@@ -20,6 +20,14 @@ package slink_reg_pkg;
     localparam Log2RawModeTXFifoDepth = 'h3;
     localparam EnChAlloc = 'h0;
 
+    typedef struct {
+        logic next;
+    } slink_reg__error__looped_rsp__in_t;
+
+    typedef struct {
+        slink_reg__error__looped_rsp__in_t looped_rsp;
+    } slink_reg__error__in_t;
+
     typedef struct packed {
         logic [15:0] _reserved_31_16;
         logic [15:0] raw_mode_in_data;
@@ -79,6 +87,7 @@ package slink_reg_pkg;
     } slink_reg__channel_alloc_rx_ctrl__external__in_t;
 
     typedef struct {
+        slink_reg__error__in_t error;
         slink_reg__raw_mode_in_data__external__in_t raw_mode_in_data;
         slink_reg__raw_mode_out_data_fifo_ctrl__external__in_t raw_mode_out_data_fifo_ctrl;
         slink_reg__flow_control_fifo_clear__external__in_t flow_control_fifo_clear;
@@ -86,6 +95,14 @@ package slink_reg_pkg;
         slink_reg__channel_alloc_tx_ctrl__external__in_t channel_alloc_tx_ctrl;
         slink_reg__channel_alloc_rx_ctrl__external__in_t channel_alloc_rx_ctrl;
     } slink_reg__in_t;
+
+    typedef struct {
+        logic value;
+    } slink_reg__ctrl__stop_send__out_t;
+
+    typedef struct {
+        slink_reg__ctrl__stop_send__out_t stop_send;
+    } slink_reg__ctrl__out_t;
 
     typedef struct {
         logic [3:0] value;
@@ -262,6 +279,7 @@ package slink_reg_pkg;
     } slink_reg__channel_alloc_rx_ch_en__out_t;
 
     typedef struct {
+        slink_reg__ctrl__out_t ctrl;
         slink_reg__node_id__out_t node_id;
         slink_reg__raw_mode_en__out_t raw_mode_en;
         slink_reg__raw_mode_in_data__external__out_t raw_mode_in_data;

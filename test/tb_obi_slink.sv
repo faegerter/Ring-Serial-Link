@@ -47,7 +47,7 @@ module tb_obi_slink;
   // ================================================================
   //  Parameters
   // ================================================================
-  localparam int unsigned NumNodes     = 16;
+  localparam int unsigned NumNodes     = 2**Log2MaxNodeIds;
   localparam int unsigned TestDuration = 15;  // transactions per node per destination
 
   localparam int unsigned MemDepth    = 256;
@@ -62,10 +62,10 @@ module tb_obi_slink;
   localparam bit          UseByteEnable = 1;
   localparam bit          UseOptional   = 0;
 
+  localparam int unsigned RecvFifoPayloadDepth = 8;
   localparam int unsigned TxFifoDepth    = 3;
   localparam int unsigned MaxOutstandingReqIn = 2;
   localparam int unsigned MaxInflightReqOut = 2;
-  localparam int unsigned NodeIdWidth = 4;
 
   localparam obi_cfg_t ObiCfg = obi_default_cfg(
       ObiAddrWidth, ObiDataWidth, ObiIdWidth, ObiMinimalOptionalConfig);
@@ -196,22 +196,22 @@ module tb_obi_slink;
 
       // SLINK instance
       slink #(
-          .TxFifoDepth     ( TxFifoDepth    ),
+          .RecvFifoPayloadDepth( RecvFifoPayloadDepth ),
+          .TxFifoDepth         ( TxFifoDepth    ),
           .MaxOutstandingReqIn ( MaxOutstandingReqIn ),
-          .MaxInflightReqOut ( MaxInflightReqOut ),
-          .NodeIdWidth     ( NodeIdWidth    ),
-          .obi_req_mgr_t   ( obi_req_t                ),
-          .obi_rsp_mgr_t   ( obi_rsp_t                ),
-          .obi_req_sbr_t   ( obi_req_t                ),
-          .obi_rsp_sbr_t   ( obi_rsp_t                ),
-          .obi_r_chan_sbr_t( obi_r_chan_t             ),
-          .a_optional_t    ( obi_a_optional_t         ),
-          .r_optional_t    ( obi_r_optional_t         ),
-          .a_chan_write_t  ( slink_obi_a_chan_write_t ),
-          .a_chan_read_t   ( slink_obi_a_chan_read_t  ),
-          .r_chan_write_t  ( slink_obi_r_chan_write_t ),
-          .r_chan_read_t   ( slink_obi_r_chan_read_t  ),
-          .slink_obi_cfg   ( SlinkObiCfg             )
+          .MaxInflightReqOut   ( MaxInflightReqOut ),
+          .obi_req_mgr_t       ( obi_req_t                ),
+          .obi_rsp_mgr_t       ( obi_rsp_t                ),
+          .obi_req_sbr_t       ( obi_req_t                ),
+          .obi_rsp_sbr_t       ( obi_rsp_t                ),
+          .obi_r_chan_sbr_t    ( obi_r_chan_t             ),
+          .a_optional_t        ( obi_a_optional_t         ),
+          .r_optional_t        ( obi_r_optional_t         ),
+          .a_chan_write_t      ( slink_obi_a_chan_write_t ),
+          .a_chan_read_t       ( slink_obi_a_chan_read_t  ),
+          .r_chan_write_t      ( slink_obi_r_chan_write_t ),
+          .r_chan_read_t       ( slink_obi_r_chan_read_t  ),
+          .slink_obi_cfg       ( SlinkObiCfg             )
       ) i_slink (
           .clk_i             ( clk[i]            ),
           .rst_ni            ( rst_n[i]           ),
@@ -274,6 +274,9 @@ module tb_obi_slink;
               // Byte-enable write
               for (int b = 0; b < ObiDataWidth / 8; b++) begin
                 if (obi_out_req[i].a.be[b])
+                  // TODO: We need to use the address we obtain to really test ring module
+                  // Right now this handles the address mapping but in reality should be
+                  // a full memory model.
                   mem[i][obi_out_req[i].a.addr[AddrIdxBits+1:2]][b*8 +: 8]
                       <= obi_out_req[i].a.wdata[b*8 +: 8];
               end

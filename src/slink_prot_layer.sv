@@ -40,7 +40,8 @@ module slink_prot_layer #(
     output axis_req_t axis_out_req_o,
     input  axis_rsp_t axis_out_rsp_i,
     input  axis_req_t axis_in_req_i,
-    output axis_rsp_t axis_in_rsp_o
+    output axis_rsp_t axis_in_rsp_o,
+    output logic      error_looped_rsp_o
 );
 
     // TODO: We should truncate/expand when IdxWidth and IDWidth are not same
@@ -646,6 +647,7 @@ module slink_prot_layer #(
                 // R channel loop means answer to remote request could not be delivered. 
                 // We can do nothing else than drop it. 
                 // TODO: could send error or something.
+                error_looped_rsp_o   = 1'b1; // Set error flag in register
                 axis_in_rsp_o.tready = 1'b1; // Consume and discard
             end
             slink_pkg::RxError: begin

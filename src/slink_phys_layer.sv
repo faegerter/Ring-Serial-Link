@@ -26,7 +26,8 @@ module slink_phys_layer #(
   input  logic                data_out_valid_i,
   output logic                data_out_ready_o,
   output logic                ddr_rcv_clk_o,
-  output logic [NumLanes-1:0] ddr_o
+  output logic [NumLanes-1:0] ddr_o,
+  input  logic                stop_send_i
 );
   phy_data_t  data_out_q;
 
@@ -38,7 +39,7 @@ module slink_phys_layer #(
 
   // Valid is always set, but
   // src_clk is clock gated
-  assign data_out_ready_o = data_out_valid_i & (clk_cnt_q == clk_div_i - 1);
+  assign data_out_ready_o = data_out_valid_i & (clk_cnt_q == clk_div_i - 1) & ~stop_send_i;
 
   ///////////////////////////////////////
   //   CLOCK DIVIDER + PHASE SHIFTER   //
@@ -196,7 +197,8 @@ module serial_link_physical #(
   output logic                data_in_valid_o,
   input  logic                data_in_ready_i,
   input  logic [NumLanes-1:0] ddr_i,
-  output logic [NumLanes-1:0] ddr_o
+  output logic [NumLanes-1:0] ddr_o,
+  input  logic                stop_send_i
 );
 
   ////////////////
@@ -217,7 +219,8 @@ module serial_link_physical #(
     .data_out_valid_i,
     .data_out_ready_o,
     .ddr_rcv_clk_o,
-    .ddr_o
+    .ddr_o,
+    .stop_send_i
   );
 
   ////////////////
