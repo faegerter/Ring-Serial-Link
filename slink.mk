@@ -44,5 +44,9 @@ $(SLINK_ROOT)/src/regs/slink_addrmap.svh: $(SLINK_ROOT)/src/regs/slink_reg.rdl $
 	$(PEAKRDL) raw-header $< -o $@ --format svh $(SLINK_PEAKRDL_PARAMS)
 	@sed -i '1i$(SLINK_COPYRIGHT_NOTICE)' $@
 
+$(SLINK_ROOT)/src/regs/slink_addrmap.h: $(SLINK_ROOT)/src/regs/slink_reg.rdl $(SLINK_ROOT)/.generated
+	$(PEAKRDL) raw-header $< -o $@ --format c $(SLINK_PEAKRDL_PARAMS)
+	@sed -i '1i$(SLINK_COPYRIGHT_NOTICE)' $@
+
 .PHONY: slink-gen-regs
-slink-gen-regs: $(SLINK_ROOT)/src/regs/slink_reg.sv $(SLINK_ROOT)/src/regs/slink_addrmap.svh
+slink-gen-regs: $(SLINK_ROOT)/src/regs/slink_reg.sv $(SLINK_ROOT)/src/regs/slink_addrmap.svh $(SLINK_ROOT)/src/regs/slink_addrmap.h
