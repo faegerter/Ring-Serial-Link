@@ -10,7 +10,7 @@
 `include "common_cells/assertions.svh"
 
 // Implements a single TX channel which forwards the source-synchronous clock
-module slink_phys_layer #(
+module slink_phys_layer_tx #(
   parameter int NumLanes   = 8,
   parameter int MaxClkDiv  = 32,
   parameter bit EnDdr = 1'b1,
@@ -29,13 +29,10 @@ module slink_phys_layer #(
   output logic [NumLanes-1:0] ddr_o,
   input  logic                stop_send_i
 );
-  phy_data_t  data_out_q;
-
   clk_div_t clk_cnt_q, clk_cnt_d;
   logic clk_enable;
   logic clk_toggle, clk_slow_toggle;
   logic clk_slow;
-  logic ddr_sel;
 
   // Valid is always set, but
   // src_clk is clock gated
@@ -73,7 +70,6 @@ module slink_phys_layer #(
     if (~rst_ni) begin
       ddr_rcv_clk_o = 1'b1;
       clk_slow <= 1'b0;
-      ddr_sel <= 1'b0;
     end else begin
       if (clk_enable) begin
         if (clk_toggle) begin
@@ -81,12 +77,10 @@ module slink_phys_layer #(
         end
         if (clk_slow_toggle) begin
           clk_slow <= !clk_slow;
-          ddr_sel <= !ddr_sel;
         end
       end else begin
         ddr_rcv_clk_o = 1'b1;
         clk_slow <= 1'b0;
-        ddr_sel <= 1'b0;
       end
     end
   end
@@ -94,19 +88,32 @@ module slink_phys_layer #(
   /////////////////
   //   DDR OUT   //
   /////////////////
-  `FF(data_out_q, data_out_i, '0, clk_slow, rst_ni)
 
   if (EnDdr) begin : gen_ddr_mode
-    assign ddr_o = (ddr_sel)? data_out_q[NumLanes-1:0] : data_out_q[NumLanes*2-1:NumLanes];
+    // Both halves are registered on clk_slow. The output mux is driven by clk_slow
+    // itself (via tc_clk_mux2) rather than by a data register.
+    logic [NumLanes-1:0] data_lo_q, data_hi_q;
+    `FF(data_lo_q, data_out_i[NumLanes-1:0],          '0, clk_slow, rst_ni)
+    `FF(data_hi_q, data_out_i[NumLanes*2-1:NumLanes], '0, clk_slow, rst_ni)
+    for (genvar i = 0; i < NumLanes; i++) begin : gen_ddr_lanes
+      tc_clk_mux2 i_ddr_mux (
+        .clk0_i    ( data_hi_q[i] ), // selected when clk_slow == 0
+        .clk1_i    ( data_lo_q[i] ), // selected when clk_slow == 1
+        .clk_sel_i ( clk_slow     ),
+        .clk_o     ( ddr_o[i]     )
+      );
+    end
   end else begin : gen_sdr_mode
+    phy_data_t data_out_q;
+    `FF(data_out_q, data_out_i, '0, clk_slow, rst_ni)
     assign ddr_o = data_out_q;
   end
 
 endmodule
 
-// Impelements a single RX channel which samples the data with the received clock
+// Implements a single RX channel which samples the data with the received clock
 // Synchronizes the data with the System clock with a CDC
-module serial_link_physical_rx #(
+module slink_phys_layer_rx #(
   parameter int NumLanes      = 8,
   parameter int FifoDepth     = 8,
   parameter int CdcSyncStages = 2,
@@ -168,7 +175,7 @@ endmodule
 
 // Implements the Physical Layer of the Serial Link
 // The number of Channels and Lanes per Channel is parametrizable
-module serial_link_physical #(
+module slink_phys_layer #(
   // Number of Wires in one channel
   parameter int NumLanes   = 8,
   // Fifo Depth of CDC, dependent on
@@ -204,12 +211,12 @@ module serial_link_physical #(
   ////////////////
   //   PHY TX   //
   ////////////////
-  slink_phys_layer #(
+  slink_phys_layer_tx #(
     .NumLanes   ( NumLanes    ),
     .EnDdr      ( EnDdr       ),
     .phy_data_t ( phy_data_t  ),
     .clk_div_t  ( clk_div_t   )
-  ) i_serial_link_physical_tx (
+  ) i_slink_phys_layer_tx (
     .rst_ni,
     .clk_i,
     .clk_div_i,
@@ -226,12 +233,12 @@ module serial_link_physical #(
   ////////////////
   //   PHY RX   //
   ////////////////
-  serial_link_physical_rx #(
+  slink_phys_layer_rx #(
     .NumLanes   ( NumLanes    ),
     .FifoDepth  ( FifoDepth   ),
     .EnDdr      ( EnDdr       ),
     .phy_data_t ( phy_data_t  )
-  ) i_serial_link_physical_rx (
+  ) i_slink_phys_layer_rx (
     .clk_i,
     .rst_ni,
     .ddr_rcv_clk_i,
