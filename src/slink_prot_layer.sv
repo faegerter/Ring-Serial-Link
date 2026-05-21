@@ -605,6 +605,8 @@ module slink_prot_layer #(
 
     always_comb begin : commiter
 
+        error_looped_rsp_o   = 1'b0;
+
         axis_in_rsp_o.tready = 1'b0;
 
         tx_fifo_valid_in           = 1'b0;
