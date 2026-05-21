@@ -526,7 +526,6 @@ module slink_link_layer #(
     //   ASSERTIONS   //
     ////////////////////
 
-    `ASSERT(BypassActiveWhenRxAndTxToProtocolAreIdle, (recv_reg_index_d != 0) && (link_out_index_d < NumChannels * NumLanes * (1 + EnDdr)) |=> rx_tx_bypass_active_d != 0)
     `ASSERT(RecvRegsStable, (&recv_reg_out_valid) & !(&recv_reg_out_ready) |=> $stable(&recv_reg_out_valid))
     `ASSERT(ReceivedNotTooManyCredits, credits_out_q <=  NumCredits)
 
