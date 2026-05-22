@@ -174,6 +174,7 @@ module tb_obi_slink;
     $display("[Node %0d] NODE_ID_REG       = 0x%08X", node_id, data);
     cfg_read(drv, `SLINK_REG_TX_PHY_CLK_DIV_0_REG_ADDR, data);
     $display("[Node %0d] TX_PHY_CLK_DIV_0 = 0x%08X", node_id, data);
+    cfg_write(drv, `SLINK_REG_CTRL_REG_ADDR, 32'b0);
     $display("[Node %0d] Link configured.", node_id);
   endtask
 

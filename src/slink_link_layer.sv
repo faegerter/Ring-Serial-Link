@@ -20,6 +20,7 @@ module slink_link_layer #(
   parameter int RawModeFifoDepth = 8,
   parameter int PayloadSplits = -1,
   parameter bit EnDdr = 1'b1,
+  parameter bit EnBypass = 1'b1,
   localparam int Log2NumChannels = (NumChannels > 1)? $clog2(NumChannels) : 1,
   localparam int unsigned Log2RawModeFifoDepth = $clog2(RawModeFifoDepth),
   parameter type credit_t  = logic,
@@ -107,6 +108,10 @@ module slink_link_layer #(
     logic [$clog2(PayloadSplits)-1:0] recv_reg_index_q, recv_reg_index_d;
     logic [$clog2(PayloadSplits)-1:0] recv_reg_payload_size_q, recv_reg_payload_size_d;
     logic [NumChannels-1:0] rx_data_in_ready;
+    logic [$bits(phy_data_t)*NumChannels-1:0] data_in_flat;
+    
+    
+    assign data_in_flat = data_in_i; 
 
 
     `FF(recv_reg_payload_size_q, recv_reg_payload_size_d, '0)
@@ -129,7 +134,7 @@ module slink_link_layer #(
     logic no_active_bypass, all_channels_valid, data_out_idle, data_in_idle, different_node_id;
     logic [$bits(slink_pkg::tag_e)+slink_reg_pkg::Log2MaxNodeIds-1:$bits(slink_pkg::tag_e)] incoming_node_id;
 
-    assign incoming_node_id   = data_in_i[0][$bits(slink_pkg::tag_e)+slink_reg_pkg::Log2MaxNodeIds-1 : $bits(slink_pkg::tag_e)];
+    assign incoming_node_id   = data_in_flat[$bits(slink_pkg::tag_e)+slink_reg_pkg::Log2MaxNodeIds-1 : $bits(slink_pkg::tag_e)];
 
     assign no_active_bypass   = ~rx_tx_bypass_active_q;
     assign all_channels_valid = &data_in_valid_i;
@@ -137,12 +142,20 @@ module slink_link_layer #(
     assign data_out_idle      = ~axis_in_req_i.tvalid;
     assign different_node_id  = (incoming_node_id != node_id_i);
 
-    assign en_rx_tx_bypass = no_active_bypass
-                           & all_channels_valid
-                           & data_in_idle
-                           & data_out_idle
-                           & different_node_id
-                           & ~stop_send_i;
+
+    generate
+        if (EnBypass) begin : gen_en_rx_tx_bypass
+            assign en_rx_tx_bypass = no_active_bypass
+                                   & all_channels_valid
+                                   & data_in_idle
+                                   & data_out_idle
+                                   & different_node_id
+                                   & ~stop_send_i;
+        end else begin : gen_no_en_rx_tx_bypass
+            assign en_rx_tx_bypass = 1'b0;
+        end
+    endgenerate
+
 
     `FF(rx_tx_bypass_active_q, rx_tx_bypass_active_d, 0)
     `FF(bypass_payload_split_index_q, bypass_payload_split_index_d, '0)
@@ -305,7 +318,7 @@ module slink_link_layer #(
         if(!(cfg_raw_mode_en_i || en_rx_tx_bypass || rx_tx_bypass_active_q)) begin
             if (&data_in_valid_i && recv_reg_in_ready[recv_reg_index_q]) begin
                 if(recv_reg_index_q == 0)begin 
-                    unique case(slink_pkg::tag_e'(data_in_i[0][$bits(slink_pkg::tag_e)-1:0]))
+                    unique case(slink_pkg::tag_e'(data_in_flat[$bits(slink_pkg::tag_e)-1:0]))
                         slink_pkg::TagAWrite: begin 
                             recv_reg_payload_size_d = AChannelWritePayloadSplits;
                             for (int i = AChannelWritePayloadSplits; i < PayloadSplits; i++) begin
@@ -355,43 +368,55 @@ module slink_link_layer #(
     end
 
 
+    generate
+        if (EnBypass) begin : gen_rx_tx_bypass
+            always_comb begin : protocol_bypass 
+                bypass_data_out = '0;
+                bypass_data_out_valid = '0;
+                bypass_payload_split_index_d = bypass_payload_split_index_q;
+                bypass_payload_size_d = bypass_payload_size_q;
+                bypass_data_in_ready = '0;
+                rx_tx_bypass_active_d = rx_tx_bypass_active_q;
 
-    always_comb begin : protocol_bypass 
-        bypass_data_out = '0;
-        bypass_data_out_valid = '0;
-        bypass_payload_split_index_d = bypass_payload_split_index_q;
-        bypass_payload_size_d = bypass_payload_size_q;
-        bypass_data_in_ready = '0;
-        rx_tx_bypass_active_d = rx_tx_bypass_active_q;
+                if(!cfg_raw_mode_en_i) begin  
+                    if((en_rx_tx_bypass || rx_tx_bypass_active_d) && (&data_in_valid_i))begin
+                        rx_tx_bypass_active_d = 1'b1;
+                        bypass_data_out_valid = '1;
+                        bypass_data_out = data_in_i;
+                        if(data_out_ready_i)begin 
+                            if(bypass_payload_split_index_q == 0)begin 
+                                unique case(slink_pkg::tag_e'(data_in_flat[$bits(slink_pkg::tag_e)-1:0]))
+                                    slink_pkg::TagAWrite: bypass_payload_size_d = AChannelWritePayloadSplits;
+                                    slink_pkg::TagARead:  bypass_payload_size_d = AChannelReadPayloadSplits; 
+                                    slink_pkg::TagRWrite: bypass_payload_size_d = RChannelWritePayloadSplits;
+                                    slink_pkg::TagRRead:  bypass_payload_size_d = RChannelReadPayloadSplits;
+                                    default:              bypass_payload_size_d = 1;
+                                endcase
+                            end
 
-        if(!cfg_raw_mode_en_i) begin  
-            if((en_rx_tx_bypass || rx_tx_bypass_active_d) && (&data_in_valid_i))begin
-                rx_tx_bypass_active_d = 1'b1;
-                bypass_data_out_valid = '1;
-                bypass_data_out = data_in_i;
-                if(data_out_ready_i)begin 
-                    if(bypass_payload_split_index_q == 0)begin 
-                        unique case(slink_pkg::tag_e'(data_in_i[0][$bits(slink_pkg::tag_e)-1:0]))
-                            slink_pkg::TagAWrite: bypass_payload_size_d = AChannelWritePayloadSplits;
-                            slink_pkg::TagARead:  bypass_payload_size_d = AChannelReadPayloadSplits; 
-                            slink_pkg::TagRWrite: bypass_payload_size_d = RChannelWritePayloadSplits;
-                            slink_pkg::TagRRead:  bypass_payload_size_d = RChannelReadPayloadSplits;
-                            default:              bypass_payload_size_d = 1;
-                        endcase
-                    end
+                            bypass_data_in_ready = {NumChannels{&data_in_valid_i}};
 
-                    bypass_data_in_ready = {NumChannels{&data_in_valid_i}};
-
-                    if (bypass_payload_split_index_q == bypass_payload_size_d - 1) begin 
-                        bypass_payload_split_index_d = 0;
-                        rx_tx_bypass_active_d = 1'b0;
-                    end else begin 
-                        bypass_payload_split_index_d = bypass_payload_split_index_q + 1;
+                            if (bypass_payload_split_index_q == bypass_payload_size_d - 1) begin 
+                                bypass_payload_split_index_d = 0;
+                                rx_tx_bypass_active_d = 1'b0;
+                            end else begin 
+                                bypass_payload_split_index_d = bypass_payload_split_index_q + 1;
+                            end
+                        end
                     end
                 end
             end
+        end else begin : gen_no_rx_tx_bypass
+            always_comb begin : protocol_bypass
+                bypass_data_out              = '0;
+                bypass_data_out_valid        = '0;
+                bypass_payload_split_index_d = '0;
+                bypass_payload_size_d        = '0;
+                bypass_data_in_ready         = '0;
+                rx_tx_bypass_active_d        = 1'b0;
+            end
         end
-    end
+    endgenerate
 
 
 
@@ -529,6 +554,10 @@ module slink_link_layer #(
     //   ASSERTIONS   //
     ////////////////////
 
+    `ASSERT(ThroughputPerCycleTooSmallForDynamicPayloads, $bits(slink_pkg::tag_e) <= NumChannels*NumLanes*(1 + EnDdr))
+    `ASSERT(ThroughputPerCycleTooSmallForBypass, $bits(slink_pkg::tag_e)+slink_reg_pkg::Log2MaxNodeIds <= NumChannels*NumLanes*(1 + EnDdr))
+    `ASSERT(RxtoProtocolAndBypassActiveAtTheSameTime, !(recv_reg_index_q != '0 && rx_tx_bypass_active_q))
+    `ASSERT(ProtocoltoTxAndBypassActiveAtTheSameTime, !(link_state_q == LinkSendBusy && rx_tx_bypass_active_q))
     `ASSERT(RecvRegsStable, (&recv_reg_out_valid) & !(&recv_reg_out_ready) |=> $stable(&recv_reg_out_valid))
     `ASSERT(ReceivedNotTooManyCredits, credits_out_q <=  NumCredits)
 

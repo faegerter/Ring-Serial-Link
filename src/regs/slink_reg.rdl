@@ -13,6 +13,7 @@ addrmap slink_reg #(
     longint unsigned NumChannels = 1,
     longint unsigned NumLanes = 8,
     longint unsigned EnDdr = 1,
+    longint unsigned EnBypass = 1,
     longint unsigned NumBits = (1+EnDdr)*NumLanes,
     longint unsigned Log2MaxNodeIds = 4,
     longint unsigned Log2MaxClkDiv = 10,

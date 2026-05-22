@@ -208,6 +208,7 @@ module slink
         .RawModeFifoDepth ( RawModeFifoDepth ),
         .PayloadSplits    ( PayloadSplits    ),
         .EnDdr            ( EnDdr            ),
+        .EnBypass         ( EnBypass         ),
         .credit_t         ( credit_t         ),
         .NumCredits       ( NumCredits       ),
         .AChannelWritePayloadSize (AChannelWritePayloadSize ),
