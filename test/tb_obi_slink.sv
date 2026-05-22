@@ -70,7 +70,7 @@ module tb_obi_slink;
   localparam obi_cfg_t ObiCfg = obi_default_cfg(
       ObiAddrWidth, ObiDataWidth, ObiIdWidth, ObiMinimalOptionalConfig);
   localparam slink_obi_cfg_t SlinkObiCfg = slink_obi_cfg(
-      ObiAddrWidth, ObiDataWidth, ObiDataWidth, ObiIdWidth, ObiIdWidth, UseByteEnable, UseOptional);
+      ObiAddrWidth, ObiDataWidth, ObiDataWidth, ObiIdWidth, UseByteEnable, UseOptional);
 
   `OBI_TYPEDEF_DEFAULT_ALL(obi, ObiCfg)
   `SLINK_OBI_TYPEDEF_DEFAULT(slink_obi, SlinkObiCfg)

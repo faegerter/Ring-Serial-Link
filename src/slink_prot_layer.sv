@@ -33,6 +33,7 @@ module slink_prot_layer #(
     input  logic      clk_i,
     input  logic      rst_ni,
     input  logic[NodeIdWidth-1:0] node_id_i,
+    // TODO Consider renaming in/out to sbr/mgr... Maybe? Not sure...
     input  obi_req_sbr_t  obi_in_req_i,
     output obi_rsp_sbr_t  obi_in_rsp_o,
     output obi_req_mgr_t  obi_out_req_o,
@@ -44,8 +45,6 @@ module slink_prot_layer #(
     output logic      error_looped_rsp_o
 );
 
-    // TODO: We should truncate/expand when IdxWidth and IDWidth are not same
-
     localparam int unsigned IdxWidth = (MaxOutstandingReqIn > 1) ? $clog2(MaxOutstandingReqIn) : 1;
     localparam int unsigned TxFifoAddrDepth = (TxFifoDepth > 1) ? $clog2(TxFifoDepth) : 1;
     localparam int unsigned TxFifoCntrDepth = (TxFifoDepth > 1) ? $clog2(TxFifoDepth+1) : 1;
@@ -53,25 +52,32 @@ module slink_prot_layer #(
     localparam int unsigned InflightReqOutCntrDepth = (MaxInflightReqOut > 1) ? $clog2(MaxInflightReqOut+1) : 1;
 
 
+    // AID and RID inside link for ordering purposes. No need to match to sbr or mgr.
+    // Relation slink_obi_cfg.IDWidth >= IdxWidth must nevertheless hold!
     typedef logic [slink_obi_cfg.IDWidth-1:0]     obi_id_t;
+
+    // These are supposed to be shared between sbr and mgr, as well as to be the same for link
     typedef logic [slink_obi_cfg.DataWidth-1:0]   obi_data_t;
     typedef logic [slink_obi_cfg.DataWidth/8-1:0] obi_be_t;
     typedef logic [slink_obi_cfg.AddrWidth-1:0]   obi_addr_t;
+    // AIDs and RIDs for sbr and mgr (may be different)
+    typedef logic [$bits(obi_in_req_i.a.aid)-1:0]  obi_sbr_id_t;
+    typedef logic [$bits(obi_out_req_o.a.aid)-1:0] obi_mgr_id_t;
 
     typedef logic [NodeIdWidth-1:0] node_id_t;
-
-    typedef logic [IdxWidth-1:0] rsp_reorder_idx_t;
+    typedef logic [IdxWidth-1:0]    rsp_reorder_idx_t;
 
 
     typedef struct packed {
         node_id_t src_id;
         logic is_write;
+        obi_id_t obi_id;
     } out_req_inflight_meta_t;
 
 
     typedef struct packed {
         slink_pkg::tx_type_e tx_type;
-        obi_id_t aid;
+        obi_sbr_id_t aid;
         logic is_write;
         node_id_t dst_id;
     } tx_meta_t;
@@ -86,7 +92,7 @@ module slink_prot_layer #(
     //   FUNCTIONS  //
     //////////////////
 
-    function automatic obi_r_chan_sbr_t obi_r_chan_pack(obi_data_t rdata, obi_id_t rid, logic err, r_optional_t r_optional);
+    function automatic obi_r_chan_sbr_t obi_r_chan_pack(obi_data_t rdata, obi_sbr_id_t rid, logic err, r_optional_t r_optional);
         return '{
             rdata: rdata,
             rid: rid,
@@ -185,10 +191,10 @@ module slink_prot_layer #(
 
     logic rsp_reorder_full;
     rsp_reorder_idx_t rsp_reorder_tail_idx, rsp_reorder_head_idx;
-    obi_id_t [MaxOutstandingReqIn-1:0] rsp_reorder_saved_aid;
+    obi_sbr_id_t [MaxOutstandingReqIn-1:0] rsp_reorder_saved_aid;
     // logic [MaxOutstandingReqIn-1:0] rsp_reorder_pending;   // Not used
     logic rsp_reorder_alloc;
-    obi_id_t rsp_reorder_alloc_aid;
+    obi_sbr_id_t rsp_reorder_alloc_aid;
     logic rsp_reorder_fill_valid;
     rsp_reorder_idx_t rsp_reorder_fill_idx;
     obi_r_chan_sbr_t rsp_reorder_fill_data;
@@ -257,10 +263,10 @@ module slink_prot_layer #(
     //   OBI CHANNEL PACKING (TX)     //
     ////////////////////////////////////
 
-    assign r_chan_write_out.rid = obi_out_rsp_i.r.rid;
+    assign r_chan_write_out.rid = out_req_inflight_fifo_data_out.obi_id;
     assign r_chan_write_out.err = obi_out_rsp_i.r.err;
 
-    assign r_chan_read_out.rid   = obi_out_rsp_i.r.rid;
+    assign r_chan_read_out.rid   = out_req_inflight_fifo_data_out.obi_id;
     assign r_chan_read_out.err   = obi_out_rsp_i.r.err;
     assign r_chan_read_out.rdata = obi_out_rsp_i.r.rdata;
 
@@ -321,10 +327,10 @@ module slink_prot_layer #(
         .DEPTH  ( MaxInflightReqOut    ),
         .dtype  ( out_req_inflight_meta_t )
     ) i_out_req_inflight_fifo (
-        .clk_i      ( clk_i                      ),
-        .rst_ni     ( rst_ni                      ),
-        .flush_i    ( 1'b0                        ),
-        .testmode_i ( 1'b0                        ),
+        .clk_i      ( clk_i                            ),
+        .rst_ni     ( rst_ni                           ),
+        .flush_i    ( 1'b0                             ),
+        .testmode_i ( 1'b0                             ),
         .full_o     ( out_req_inflight_fifo_full       ),
         .empty_o    ( out_req_inflight_fifo_empty      ),
         .usage_o    ( out_req_inflight_fifo_fill_state ),
@@ -341,7 +347,7 @@ module slink_prot_layer #(
     slink_rsp_reorder #(
         .MaxOutstanding ( MaxOutstandingReqIn ),
         .obi_r_chan_t   ( obi_r_chan_sbr_t    ),
-        .obi_id_t       ( obi_id_t            )
+        .obi_id_t       ( obi_sbr_id_t        )
     ) i_rsp_reorder (
         .clk_i       ( clk_i                  ),
         .rst_ni      ( rst_ni                 ),
@@ -443,14 +449,16 @@ module slink_prot_layer #(
         if (rx_has_incoming_a) begin
             if (rx_meta.is_write) begin
                 obi_out_req_o.a.addr       = get_local_addr(a_chan_write_in.addr);
-                obi_out_req_o.a.aid        = a_chan_write_in.aid;
+                // AID sizes might differ, but AID not really important here.
+                obi_out_req_o.a.aid        = obi_mgr_id_t'(a_chan_write_in.aid);
                 obi_out_req_o.a.wdata      = a_chan_write_in.wdata;
                 obi_out_req_o.a.we         = 1'b1;
                 obi_out_req_o.a.a_optional = a_chan_write_optional_in;
                 obi_out_req_o.a.be         = a_chan_write_be_in;
             end else begin
                 obi_out_req_o.a.addr       = get_local_addr(a_chan_read_in.addr);
-                obi_out_req_o.a.aid        = a_chan_read_in.aid;
+                // AID sizes might differ, but AID not really important here.
+                obi_out_req_o.a.aid        = obi_mgr_id_t'(a_chan_read_in.aid);
                 obi_out_req_o.a.wdata      = '0;
                 obi_out_req_o.a.we         = 1'b0;
                 obi_out_req_o.a.a_optional = a_chan_read_optional_in;
@@ -603,6 +611,31 @@ module slink_prot_layer #(
     end
 
 
+    always_comb begin : out_req_inflight_fifo_arbiter
+        out_req_inflight_fifo_data_in = '0;
+
+        unique case (payload_in.hdr)
+            slink_pkg::TagAWrite: begin
+                out_req_inflight_fifo_data_in = '{
+                    src_id:   payload_in.src_id,
+                    is_write: 1'b1,
+                    obi_id:   a_chan_write_in.aid
+                };
+            end
+            slink_pkg::TagARead: begin
+                out_req_inflight_fifo_data_in = '{
+                    src_id:   payload_in.src_id,
+                    is_write: 1'b0,
+                    obi_id:   a_chan_read_in.aid
+                };
+            end
+            default: begin
+                out_req_inflight_fifo_data_in = '0;
+            end
+        endcase
+    end
+
+
     always_comb begin : commiter
 
         error_looped_rsp_o   = 1'b0;
@@ -624,10 +657,6 @@ module slink_prot_layer #(
 
         rr_tx_out_arb_d = rr_tx_out_arb_q;
 
-        out_req_inflight_fifo_data_in = '{
-            src_id:   payload_in.src_id,
-            is_write: payload_in.hdr == slink_pkg::TagAWrite
-        };
 
         unique case (rx_meta.rx_type)
             slink_pkg::RxIncomingA: begin

@@ -50,12 +50,12 @@ package slink_pkg;
 
 
 
-  function automatic slink_obi_cfg_t slink_obi_cfg(int unsigned AddrWidth, int unsigned DataWidth, int unsigned RDataWidth, int unsigned AIDWidth, int unsigned RIDWidth, bit UseByteEnable = 1, bit UseOptional = 0);
+  function automatic slink_obi_cfg_t slink_obi_cfg(int unsigned AddrWidth, int unsigned DataWidth, int unsigned RDataWidth, int unsigned IDWidth, bit UseByteEnable = 1, bit UseOptional = 0);
     slink_obi_cfg = '{
       AddrWidth:       AddrWidth,
       DataWidth:       DataWidth,
       RDataWidth:      RDataWidth,
-      IDWidth:         AIDWidth > RIDWidth ? AIDWidth : RIDWidth,
+      IDWidth:         IDWidth,
       UseByteEnable:   UseByteEnable,
       UseOptional:     UseOptional
     };

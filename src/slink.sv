@@ -382,7 +382,7 @@ module slink
     /////////////////////////////////
 
     slink_reg #( 
-        .ID_WIDTH (slink_obi_cfg.IDWidth)
+        .ID_WIDTH ( $bits(obi_reg_req_i.a.aid) )
     )i_serial_link_reg (
         .clk  (clk_i),
         .arst_n (rst_ni),
