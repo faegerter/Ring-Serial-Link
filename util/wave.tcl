@@ -75,9 +75,9 @@ for {set i 0} {$i < $num_nodes} {incr i} {
     for {set c 0} {$c < $num_channels} {incr c} {
         set phy_base [esc [format {%s/gen_phy_channels[%d]/i_serial_link_physical} $base $c]]
         add wave -noupdate -group $group_name -group PHY -group TX -group CH$c \
-            $phy_base/i_serial_link_physical_tx/*
+            $phy_base/i_slink_phys_layer_tx/*
         add wave -noupdate -group $group_name -group PHY -group RX -group CH$c \
-            $phy_base/i_serial_link_physical_rx/*
+            $phy_base/i_slink_phys_layer_rx/*
     }
 
     # -- Register map --
