@@ -383,7 +383,7 @@ module slink_reg #(
     end
     always_ff @(posedge clk or negedge arst_n) begin
         if(~arst_n) begin
-            field_storage.ctrl.stop_send.value <= 1'h0;
+            field_storage.ctrl.stop_send.value <= 1'h1;
         end else begin
             if(field_combo.ctrl.stop_send.load_next) begin
                 field_storage.ctrl.stop_send.value <= field_combo.ctrl.stop_send.next;

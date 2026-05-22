@@ -30,7 +30,7 @@ addrmap slink_reg #(
         field {
             name = "stop_send";
             desc = "Stop the sending";
-        } stop_send[0:0] = 0x0;
+        } stop_send[0:0] = 0x1;
     };
 
     reg error {

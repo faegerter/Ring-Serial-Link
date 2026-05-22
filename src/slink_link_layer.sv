@@ -65,7 +65,8 @@ module slink_link_layer #(
   output logic                            credit_rtrn_clk_o,
   output credit_t                         credits_out_o,
   // Bypass
-  input  logic[3:0]                       node_id_i
+  input  logic[3:0]                       node_id_i,
+  input  logic                            stop_send_i
   );
 
     localparam int AChannelWritePayloadSplits = (AChannelWritePayloadSize + BandWidth - 1)/BandWidth;
@@ -140,7 +141,8 @@ module slink_link_layer #(
                            & all_channels_valid
                            & data_in_idle
                            & data_out_idle
-                           & different_node_id;
+                           & different_node_id
+                           & ~stop_send_i;
 
     `FF(rx_tx_bypass_active_q, rx_tx_bypass_active_d, 0)
     `FF(bypass_payload_split_index_q, bypass_payload_split_index_d, '0)
@@ -347,7 +349,7 @@ module slink_link_layer #(
                 recv_reg_index_d = (recv_reg_index_q == recv_reg_payload_size_d - 1) ? 0 : recv_reg_index_q + 1;
             end
 
-            axis_out_req_o.tvalid = &recv_reg_out_valid;
+            axis_out_req_o.tvalid = &recv_reg_out_valid & ~stop_send_i;
             recv_reg_out_ready = {PayloadSplits{axis_out_rsp_i.tready}};
         end
     end
@@ -460,18 +462,19 @@ module slink_link_layer #(
     always_comb begin : tx_bypass_raw_mode_mux
         data_out_valid_o = '0;
         data_out_o = '0;
-
-        if (cfg_raw_mode_en_i) begin
-            data_out_o = raw_mode_data_out;
-            data_out_valid_o = (credits_out_q != '0) ? raw_mode_data_out_valid : '0; 
-        end 
-        else if(en_rx_tx_bypass || rx_tx_bypass_active_q) begin
-            data_out_o = bypass_data_out;
-            data_out_valid_o = (credits_out_q != '0) ? bypass_data_out_valid : '0;
-        end 
-        else begin
-            data_out_o = tx_data_out;
-            data_out_valid_o = (credits_out_q != '0) ? tx_data_out_valid : '0; 
+        if (~stop_send_i) begin
+            if (cfg_raw_mode_en_i) begin
+                data_out_o = raw_mode_data_out;
+                data_out_valid_o = (credits_out_q != '0) ? raw_mode_data_out_valid : '0; 
+            end 
+            else if(en_rx_tx_bypass || rx_tx_bypass_active_q) begin
+                data_out_o = bypass_data_out;
+                data_out_valid_o = (credits_out_q != '0) ? bypass_data_out_valid : '0;
+            end 
+            else begin
+                data_out_o = tx_data_out;
+                data_out_valid_o = (credits_out_q != '0) ? tx_data_out_valid : '0; 
+            end
         end
     end
 
