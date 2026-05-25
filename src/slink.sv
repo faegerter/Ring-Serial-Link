@@ -72,8 +72,8 @@ module slink
     // 2) Header
     typedef struct packed {
         logic [MaxObiChannelBits-1:0] obi_ch;
-        logic [3:0] src_id;
-        logic [3:0] dst_id;
+        logic [Log2MaxNodeIds-1:0] src_id;
+        logic [Log2MaxNodeIds-1:0] dst_id;
         slink_pkg::tag_e hdr;
     } payload_t;
 
