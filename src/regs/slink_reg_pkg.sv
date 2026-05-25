@@ -13,6 +13,7 @@ package slink_reg_pkg;
     localparam NumChannels = 'h1;
     localparam NumLanes = 'h8;
     localparam EnDdr = 'h1;
+    localparam EnBypass = 'h1;
     localparam NumBits = 'h10;
     localparam Log2MaxNodeIds = 'h4;
     localparam Log2MaxClkDiv = 'ha;

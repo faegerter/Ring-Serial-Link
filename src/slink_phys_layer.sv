@@ -26,8 +26,7 @@ module slink_phys_layer_tx #(
   input  logic                data_out_valid_i,
   output logic                data_out_ready_o,
   output logic                ddr_rcv_clk_o,
-  output logic [NumLanes-1:0] ddr_o,
-  input  logic                stop_send_i
+  output logic [NumLanes-1:0] ddr_o
 );
   clk_div_t clk_cnt_q, clk_cnt_d;
   logic clk_enable;
@@ -36,7 +35,7 @@ module slink_phys_layer_tx #(
 
   // Valid is always set, but
   // src_clk is clock gated
-  assign data_out_ready_o = data_out_valid_i & (clk_cnt_q == clk_div_i - 1) & ~stop_send_i;
+  assign data_out_ready_o = data_out_valid_i & (clk_cnt_q == clk_div_i - 1);
 
   ///////////////////////////////////////
   //   CLOCK DIVIDER + PHASE SHIFTER   //
@@ -204,9 +203,8 @@ module slink_phys_layer #(
   output logic                data_in_valid_o,
   input  logic                data_in_ready_i,
   input  logic [NumLanes-1:0] ddr_i,
-  output logic [NumLanes-1:0] ddr_o,
-  input  logic                stop_send_i
-);
+  output logic [NumLanes-1:0] ddr_o
+  );
 
   ////////////////
   //   PHY TX   //
@@ -226,8 +224,7 @@ module slink_phys_layer #(
     .data_out_valid_i,
     .data_out_ready_o,
     .ddr_rcv_clk_o,
-    .ddr_o,
-    .stop_send_i
+    .ddr_o
   );
 
   ////////////////
