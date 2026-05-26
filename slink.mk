@@ -12,13 +12,19 @@ SLINK_ROOT ?= $(shell $(BENDER) path serial_link)
 # SystemRDL register generation #
 #################################
 
+SLINK_LOG2_MAX_NODE_IDS          	?= 4
 SLINK_NUM_CHANNELS               	?= 1
 SLINK_NUM_LANES                  	?= 8
+SLINK_EN_DDR                     	?= 1
+SLINK_EN_BYPASS                  	?= 1
 SLINK_LOG2_MAX_CLK_DIV           	?= 10
 SLINK_LOG2_RAW_MODE_TX_FIFO_DEPTH	?= 3
 
+SLINK_PEAKRDL_PARAMS += -P Log2MaxNodeIds=$(SLINK_LOG2_MAX_NODE_IDS)
 SLINK_PEAKRDL_PARAMS += -P NumChannels=$(SLINK_NUM_CHANNELS)
 SLINK_PEAKRDL_PARAMS += -P NumLanes=$(SLINK_NUM_LANES)
+SLINK_PEAKRDL_PARAMS += -P EnDdr=$(SLINK_EN_DDR)
+SLINK_PEAKRDL_PARAMS += -P EnBypass=$(SLINK_EN_BYPASS)
 SLINK_PEAKRDL_PARAMS += -P Log2MaxClkDiv=$(SLINK_LOG2_MAX_CLK_DIV)
 SLINK_PEAKRDL_PARAMS += -P Log2RawModeTXFifoDepth=$(SLINK_LOG2_RAW_MODE_TX_FIFO_DEPTH)
 
@@ -44,9 +50,6 @@ $(SLINK_ROOT)/src/regs/slink_addrmap.svh: $(SLINK_ROOT)/src/regs/slink_reg.rdl $
 	$(PEAKRDL) raw-header $< -o $@ --format svh $(SLINK_PEAKRDL_PARAMS)
 	@sed -i '1i$(SLINK_COPYRIGHT_NOTICE)' $@
 
-$(SLINK_ROOT)/src/regs/slink_addrmap.h: $(SLINK_ROOT)/src/regs/slink_reg.rdl $(SLINK_ROOT)/.generated
-	$(PEAKRDL) raw-header $< -o $@ --format c $(SLINK_PEAKRDL_PARAMS)
-	@sed -i '1i$(SLINK_COPYRIGHT_NOTICE)' $@
 
 .PHONY: slink-gen-regs
-slink-gen-regs: $(SLINK_ROOT)/src/regs/slink_reg.sv $(SLINK_ROOT)/src/regs/slink_addrmap.svh $(SLINK_ROOT)/src/regs/slink_addrmap.h
+slink-gen-regs: $(SLINK_ROOT)/src/regs/slink_reg.sv $(SLINK_ROOT)/src/regs/slink_addrmap.svh

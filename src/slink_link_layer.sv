@@ -66,7 +66,7 @@ module slink_link_layer #(
   output logic                            credit_rtrn_clk_o,
   output credit_t                         credits_out_o,
   // Bypass
-  input  logic[3:0]                       node_id_i,
+  input  logic[slink_reg_pkg::Log2MaxNodeIds-1:0]        node_id_i,
   input  logic                            stop_send_i
   );
 
@@ -132,7 +132,7 @@ module slink_link_layer #(
     logic rx_tx_bypass_active_q, rx_tx_bypass_active_d;
 
     logic no_active_bypass, all_channels_valid, data_out_idle, data_in_idle, different_node_id;
-    logic [$bits(slink_pkg::tag_e)+slink_reg_pkg::Log2MaxNodeIds-1:$bits(slink_pkg::tag_e)] incoming_node_id;
+    logic [slink_reg_pkg::Log2MaxNodeIds-1:0] incoming_node_id;
 
     assign incoming_node_id   = data_in_flat[$bits(slink_pkg::tag_e)+slink_reg_pkg::Log2MaxNodeIds-1 : $bits(slink_pkg::tag_e)];
 
@@ -554,8 +554,9 @@ module slink_link_layer #(
     //   ASSERTIONS   //
     ////////////////////
 
-    `ASSERT(ThroughputPerCycleTooSmallForDynamicPayloads, $bits(slink_pkg::tag_e) <= NumChannels*NumLanes*(1 + EnDdr))
-    `ASSERT(ThroughputPerCycleTooSmallForBypass, $bits(slink_pkg::tag_e)+slink_reg_pkg::Log2MaxNodeIds <= NumChannels*NumLanes*(1 + EnDdr))
+    `ASSERT_INIT(ThroughputPerCycleTooSmallForDynamicPayloads, $bits(slink_pkg::tag_e) <= NumChannels*NumLanes*(1 + EnDdr))
+    `ASSERT_INIT(ThroughputPerCycleTooSmallForBypass, !EnBypass || ($bits(slink_pkg::tag_e)+slink_reg_pkg::Log2MaxNodeIds <= NumChannels*NumLanes*(1 + EnDdr)))
+    
     `ASSERT(RxtoProtocolAndBypassActiveAtTheSameTime, !(recv_reg_index_q != '0 && rx_tx_bypass_active_q))
     `ASSERT(ProtocoltoTxAndBypassActiveAtTheSameTime, !(link_state_q == LinkSendBusy && rx_tx_bypass_active_q))
     `ASSERT(RecvRegsStable, (&recv_reg_out_valid) & !(&recv_reg_out_ready) |=> $stable(&recv_reg_out_valid))
