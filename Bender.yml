@@ -53,10 +53,12 @@ sources:
     - target: slink_test
       include_dirs:
       - src/regs
+      - test/include
       files:
       - test/obi_test_fix_pkg.sv
       - test/tb_obi_slink.sv
       - test/tb_stream_chopper.sv
       - test/tb_stream_chopper_dechopper.sv
       - test/tb_channel_allocator.sv
+      - test/tb_ring.sv
 

@@ -36,7 +36,8 @@ module slink
     parameter type a_chan_read_t        = logic,
     parameter type r_chan_write_t       = logic,
     parameter type r_chan_read_t        = logic,
-    parameter slink_pkg::slink_obi_cfg_t slink_obi_cfg = slink_pkg::slink_obi_cfg(32, 32, 32, 4, 1, 0)
+    parameter slink_pkg::slink_obi_cfg_t slink_obi_cfg = slink_pkg::slink_obi_cfg(32, 32, 32, 4, 1, 0),
+    parameter bit EnDynPayloadSize = 1'b1
 ) (
     input  logic                      clk_i,
     input  logic                      rst_ni,
@@ -83,10 +84,10 @@ module slink
     localparam int unsigned NumCredits = RecvFifoDepth;
     
     localparam int PayloadHeaderSize        = $bits(payload_t) - MaxObiChannelBits;
-    localparam int AChannelWritePayloadSize = $bits(a_chan_write_t) + PayloadHeaderSize;
-    localparam int AChannelReadPayloadSize  = $bits(a_chan_read_t) + PayloadHeaderSize;
-    localparam int RChannelWritePayloadSize = $bits(r_chan_write_t) + PayloadHeaderSize;
-    localparam int RChannelReadPayloadSize  = $bits(r_chan_read_t) + PayloadHeaderSize;
+    localparam int AChannelWritePayloadSize = EnDynPayloadSize ? $bits(a_chan_write_t) + PayloadHeaderSize : $bits(payload_t);
+    localparam int AChannelReadPayloadSize  = EnDynPayloadSize ? $bits(a_chan_read_t)  + PayloadHeaderSize : $bits(payload_t);
+    localparam int RChannelWritePayloadSize = EnDynPayloadSize ? $bits(r_chan_write_t) + PayloadHeaderSize : $bits(payload_t);
+    localparam int RChannelReadPayloadSize  = EnDynPayloadSize ? $bits(r_chan_read_t)  + PayloadHeaderSize : $bits(payload_t);
 
 
     typedef logic [$clog2(NumCredits):0] credit_t;
