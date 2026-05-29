@@ -539,7 +539,7 @@ module slink_link_layer #(
     always_comb begin : recv_credits
         credits_out_d = credits_out_q;
         credit_in_ready = 1'b0;
-        if (data_out_ready_i) begin
+        if (data_out_ready_i && (|data_out_valid_o)) begin
             credits_out_d--;
         end
         if (credit_in) begin

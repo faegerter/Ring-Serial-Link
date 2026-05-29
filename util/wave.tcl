@@ -29,10 +29,10 @@ puts "wave.tcl: num_nodes  = $num_nodes"
 # ---------------------------------------------------------------------------
 #  Count PHY channels per node.
 # ---------------------------------------------------------------------------
-set all_phy      [find instances -bydu serial_link_physical -recursive]
+set all_phy      [find instances -bydu slink_phys_layer -recursive]
 set total_phy    [llength $all_phy]
 if {$total_phy == 0} {
-    puts "wave.tcl: WARNING — no serial_link_physical instances found, defaulting to 1"
+    puts "wave.tcl: WARNING — no slink_phys_layer instances found, defaulting to 1"
     set num_channels 1
 } else {
     set num_channels [expr {$total_phy / $num_nodes}]
