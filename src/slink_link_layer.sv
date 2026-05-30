@@ -188,8 +188,10 @@ module slink_link_layer #(
     credit_t credits_to_send_q, credits_to_send_d;
     logic credit_clk_out_en;
     logic credit_in_ready, credit_in;
+    logic credits_available;
 
-    assign credits_out_o = credits_out_d;
+    assign credits_out_o     = credits_out_q;
+    assign credits_available = (credits_out_q != '0);
 
 
     `FF(credits_to_send_q, credits_to_send_d, '0)
@@ -292,7 +294,7 @@ module slink_link_layer #(
             if (cfg_raw_mode_out_en_i & ~raw_mode_fifo_empty) begin
                 raw_mode_data_out_valid = cfg_raw_mode_out_ch_mask_i;
                 raw_mode_data_out = {{NumChannels}{raw_mode_fifo_data_out}};
-                if (data_out_ready_i) begin
+                if (data_out_ready_i && credits_available) begin
                     raw_mode_fifo_pop = 1'b1;
                 end
             end
@@ -383,7 +385,7 @@ module slink_link_layer #(
                         rx_tx_bypass_active_d = 1'b1;
                         bypass_data_out_valid = '1;
                         bypass_data_out = data_in_i;
-                        if(data_out_ready_i)begin 
+                        if(data_out_ready_i && credits_available)begin 
                             if(bypass_payload_split_index_q == 0)begin 
                                 unique case(slink_pkg::tag_e'(data_in_flat[$bits(slink_pkg::tag_e)-1:0]))
                                     slink_pkg::TagAWrite: bypass_payload_size_d = AChannelWritePayloadSplits;
@@ -442,7 +444,7 @@ module slink_link_layer #(
                         link_out_index_d = NumChannels * NumLanes * (1 + EnDdr);
                         tx_data_out_valid = '1;
                         tx_data_out = axis_in_req_i.t.data;
-                        if (data_out_ready_i) begin
+                        if (data_out_ready_i && credits_available) begin
                             link_state_d = LinkSendBusy;
                             if (link_out_index_d >= link_out_payload_size_d) begin
                                 link_state_d = LinkSendIdle;
@@ -455,7 +457,7 @@ module slink_link_layer #(
                 LinkSendBusy: begin 
                     tx_data_out_valid = '1;
                     tx_data_out = axis_in_req_i.t.data >> link_out_index_q;
-                    if (data_out_ready_i) begin
+                    if (data_out_ready_i && credits_available) begin
                         link_out_index_d = link_out_index_q + NumChannels * NumLanes * (1 + EnDdr);
                         if (link_out_index_d >= link_out_payload_size_q) begin
                             link_state_d = LinkSendIdle;
